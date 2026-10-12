@@ -1,0 +1,89 @@
+# Projet Xcode généré par XcodeGen : `xcodegen generate` dans ios/.
+# Le .xcodeproj n'est jamais édité à la main ni commité.
+name: MotivPlan
+
+options:
+  bundleIdPrefix: fr.ascenzia
+  developmentLanguage: fr
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Renseigner l'identifiant d'équipe Apple Developer avant le premier build sur appareil.
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+
+packages:
+  TimelineEngine:
+    path: Packages/TimelineEngine
+  MotivPlanCore:
+    path: Packages/MotivPlanCore
+
+targets:
+  MotivPlan:
+    type: application
+    platform: iOS
+    sources:
+      - MotivPlan
+    dependencies:
+      - target: MotivPlanWidget
+      - package: MotivPlanCore
+        product: CoreModels
+      - package: MotivPlanCore
+        product: CoreIntents
+    info:
+      path: MotivPlan/Info.plist
+      properties:
+        CFBundleDisplayName: MotivPlan
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        CFBundleURLTypes:
+          - CFBundleURLName: fr.ascenzia.motivplan
+            CFBundleURLSchemes:
+              - motivplan
+    entitlements:
+      path: MotivPlan/MotivPlan.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.fr.ascenzia.motivplan
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: fr.ascenzia.motivplan
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+
+  MotivPlanWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - MotivPlanWidget
+    dependencies:
+      - package: MotivPlanCore
+        product: CoreModels
+    info:
+      path: MotivPlanWidget/Info.plist
+      properties:
+        CFBundleDisplayName: MotivPlan
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: MotivPlanWidget/MotivPlanWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.fr.ascenzia.motivplan
+    settings:
+      base:
+        # Isolation par défaut laissée à nonisolated : TimelineProvider n'est pas MainActor.
+        PRODUCT_BUNDLE_IDENTIFIER: fr.ascenzia.motivplan.widget

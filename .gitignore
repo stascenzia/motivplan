@@ -1,0 +1,23 @@
+# Xcode (projet généré par XcodeGen)
+ios/*.xcodeproj/
+ios/MotivPlan/Info.plist
+ios/MotivPlanWidget/Info.plist
+ios/MotivPlan/MotivPlan.entitlements
+ios/MotivPlanWidget/MotivPlanWidget.entitlements
+DerivedData/
+xcuserdata/
+*.xcuserstate
+.build/
+.swiftpm/
+Package.resolved
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Divers
+.DS_Store
+Thumbs.db
+.env

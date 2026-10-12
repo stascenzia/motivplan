@@ -1,0 +1,7 @@
+# Lot 0 : API seule. Postgres et Caddy arrivent au lot 7.
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
