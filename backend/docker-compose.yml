@@ -1,7 +1,46 @@
-# Lot 0 : API seule. Postgres et Caddy arrivent au lot 7.
+# Production : api + postgres + caddy (TLS automatique). Variables dans .env (voir .env.example).
 services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: motivplan
+      POSTGRES_USER: motivplan
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant dans .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U motivplan -d motivplan"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
   api:
     build: .
-    ports:
-      - "8000:8000"
+    environment:
+      MOTIVPLAN_DATABASE_URL: postgresql+psycopg://motivplan:${POSTGRES_PASSWORD}@postgres:5432/motivplan
+      MOTIVPLAN_API_TOKEN: ${MOTIVPLAN_API_TOKEN:?MOTIVPLAN_API_TOKEN manquant dans .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:

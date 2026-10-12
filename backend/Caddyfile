@@ -1,0 +1,6 @@
+# Certificat HTTPS obtenu automatiquement pour $DOMAIN (Let's Encrypt).
+# Avec DOMAIN=localhost, Caddy utilise un certificat local auto-signé.
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy api:8000
+}

@@ -4,7 +4,11 @@ version = "0.1.0"
 description = "MotivPlan sync backend"
 requires-python = ">=3.13"
 dependencies = [
+    "alembic>=1.20.0",
     "fastapi>=0.143.0",
+    "psycopg[binary]>=3.3.6",
+    "pydantic-settings>=2.15.0",
+    "sqlalchemy>=2.1.4",
     "uvicorn[standard]>=0.54.0",
 ]
 

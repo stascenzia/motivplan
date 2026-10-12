@@ -104,6 +104,8 @@ Une entrée par décision structurante. Format court : contexte, décision, cons
 
 **Décision** : lots 0 à 6 livrent une app utilisable hors-ligne ; lots 7 et 8 ajoutent le backend et la synchro. Le backend n'est jamais sur le chemin critique d'une action utilisateur.
 
+**Amendement 2026-10-12** : faute de Mac disponible, le lot 7 (backend) est réalisé juste après le lot 1, car il se développe et se teste entièrement sous Windows. Le principe ne change pas : l'app reste utilisable sans backend, le lot 8 (client de synchro) vient toujours après les lots iOS. Le déploiement sur le VPS reste à faire (aucun serveur encore loué).
+
 ---
 
 ## ADR-011 — App native confirmée face à une web app
