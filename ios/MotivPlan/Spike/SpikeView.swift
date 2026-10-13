@@ -1,59 +1,30 @@
 import SwiftUI
 
-/// Écran provisoire du lot 0 : affiche ce que Siri a capturé, et le champ ouvert par le widget.
+/// Journal du spike Siri du lot 0 (ADR-003) : ce que Siri a capturé, en attendant
+/// l'AddTaskIntent définitif du lot 4. Accessible depuis la boîte de réception.
 struct SpikeView: View {
-    @Binding var captureRequested: Bool
     @Environment(\.scenePhase) private var scenePhase
     @State private var entries: [String] = []
-    @State private var draft = ""
-    @FocusState private var fieldFocused: Bool
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    TextField("Nouvelle tâche", text: $draft)
-                        .focused($fieldFocused)
-                        .submitLabel(.done)
-                        .onSubmit(addDraft)
-                }
-                Section("Captures (spike Siri)") {
-                    if entries.isEmpty {
-                        Text("Aucune capture pour l'instant.")
-                            .foregroundStyle(.secondary)
-                    }
-                    ForEach(entries.reversed(), id: \.self) { Text($0) }
-                }
+        List {
+            if entries.isEmpty {
+                Text("Aucune capture Siri pour l'instant.")
+                    .foregroundStyle(.secondary)
             }
-            .navigationTitle("MotivPlan")
-            .toolbar {
-                Button("Vider", role: .destructive) {
-                    SpikeLog.clear()
-                    reload()
-                }
+            ForEach(entries.reversed(), id: \.self) { Text($0) }
+        }
+        .navigationTitle("Spike Siri")
+        .toolbar {
+            Button("Vider", role: .destructive) {
+                SpikeLog.clear()
+                reload()
             }
         }
         .onAppear(perform: reload)
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { reload() }
         }
-        .onChange(of: captureRequested) { _, requested in
-            guard requested else { return }
-            // Sur iOS 17, le focus au premier rendu peut demander un léger différé (plan, §Capture).
-            Task {
-                try? await Task.sleep(for: .milliseconds(150))
-                fieldFocused = true
-                captureRequested = false
-            }
-        }
-    }
-
-    private func addDraft() {
-        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        SpikeLog.append(trimmed)
-        draft = ""
-        reload()
     }
 
     private func reload() {

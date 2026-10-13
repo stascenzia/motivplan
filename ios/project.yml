@@ -36,6 +36,7 @@ targets:
         product: CoreModels
       - package: MotivPlanCore
         product: CoreIntents
+      - package: TimelineEngine
     info:
       path: MotivPlan/Info.plist
       properties:
@@ -87,3 +88,24 @@ targets:
       base:
         # Isolation par défaut laissée à nonisolated : TimelineProvider n'est pas MainActor.
         PRODUCT_BUNDLE_IDENTIFIER: fr.ascenzia.motivplan.widget
+
+  MotivPlanUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - MotivPlanUITests
+    dependencies:
+      - target: MotivPlan
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: fr.ascenzia.motivplan.uitests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  MotivPlan:
+    build:
+      targets:
+        MotivPlan: all
+    test:
+      targets:
+        - MotivPlanUITests

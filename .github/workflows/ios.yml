@@ -46,15 +46,46 @@ jobs:
       - run: xcodegen generate
       - name: Tests MotivPlanCore
         run: swift test --package-path Packages/MotivPlanCore
-      - name: Build app + widget (simulateur, sans signature)
+      - name: Build + tests d'interface (simulateur, sans signature)
         run: |
-          xcodebuild build \
+          # Premier iPhone disponible sur le runtime iOS le plus récent.
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          runtimes = sorted((k for k in devices if ".iOS-" in k), key=lambda k: [int(p) for p in k.split(".iOS-")[1].split("-")])
+          print(next(d["udid"] for d in devices[runtimes[-1]] if d["name"].startswith("iPhone")))')
+          echo "Simulateur : $UDID"
+          xcodebuild test \
             -project MotivPlan.xcodeproj \
             -scheme MotivPlan \
-            -destination "generic/platform=iOS Simulator" \
+            -destination "id=$UDID" \
+            -resultBundlePath Screens.xcresult \
             CODE_SIGNING_ALLOWED=NO \
             | tee build.log
           exit "${PIPESTATUS[0]}"
+      - name: Export des captures d'écran
+        if: always()
+        run: |
+          [ -d Screens.xcresult ] || exit 0
+          xcrun xcresulttool export attachments --path Screens.xcresult --output-path screenshots
+          # Renomme les fichiers exportés avec le nom donné dans le test.
+          python3 - <<'PY'
+          import json, os
+          manifest = json.load(open("screenshots/manifest.json"))
+          for test in manifest:
+              for a in test.get("attachments", []):
+                  name = a.get("suggestedHumanReadableName") or a["exportedFileName"]
+                  ext = os.path.splitext(a["exportedFileName"])[1]
+                  base = name.split("_")[0]
+                  os.rename(f"screenshots/{a['exportedFileName']}", f"screenshots/{base}{ext}")
+          PY
+      - name: Captures d'écran
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: ios/screenshots
+          if-no-files-found: ignore
       - name: Journal de build
         if: failure()
         uses: actions/upload-artifact@v4
