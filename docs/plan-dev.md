@@ -146,7 +146,7 @@ Chaque lot se termine par un commit (Conventional Commits), une app installable 
 ### Lot 2 — Données et boîte de réception (M)
 
 - `CoreModels` : `TaskItem`, `Session`, enums, `SchemaV1`, factory de `ModelContainer` App Group, `TaskStore` (création, mise à jour, tombstone, requêtes inbox / jour / semaine), tests avec `isStoredInMemoryOnly: true`.
-- Écran Boîte de réception : champ de capture permanent, liste, gestes rapides (menu contextuel ou balayage) pour catégorie, importance, échéance via puces (aujourd'hui, demain, cette semaine, choisir), « planifier aujourd'hui / demain » en un tap.
+- Écran Boîte de réception : champ de capture permanent, liste, gestes rapides (menu contextuel ou balayage) pour catégorie, importance, échéance via puces (aujourd'hui, demain, cette semaine, choisir), « planifier aujourd'hui / demain » en un tap, et « Planifier le… » (sélecteur de date) pour poser une tâche sur un jour lointain, ajoutée en fin de séquence de ce jour.
 - Écran Détail tâche : notes, catégorie, importance, échéance, `postponeCount` visible ici seulement, suppression.
 
 ### Lot 3 — Vue Jour (L, cœur de l'app)
@@ -218,7 +218,7 @@ Commandes : `swift test` dans chaque package (Windows pour `TimelineEngine`, Mac
 
 ## Hors périmètre v1 (rappel)
 
-v2 : récurrences, sessions (UI), vue mois, points et progression, suggestion de découpage au-delà de 5 reports. v3 : import calendrier, notifications, statistiques, Apple Watch.
+v2 : récurrences, sessions (UI), vue mois en vrai onglet calendrier de planification (validé le 2026-10-13), points et progression, suggestion de découpage au-delà de 5 reports. v3 : import calendrier, notifications, statistiques, Apple Watch.
 
 ## Points encore ouverts (à trancher au design, pas dans le code)
 
