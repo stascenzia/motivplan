@@ -152,8 +152,9 @@ struct TaskStoreTests {
         #expect(try displayed() == ["M", "A", "B"])
         let layout = store.layout(of: try store.tasks(on: store.today))
         let a = try #require(layout.placements.first { $0.id == tasks[0].id })
+        // Séquence normalisée : A suit M dans l'ordre stocké, elle n'est plus « poussée » au calcul.
         #expect(a.start == 11 * 60)
-        #expect(a.pushedPastAnchor == tasks[1].id)
+        #expect(a.pushedPastAnchor == nil)
 
         try store.setAnchor(nil, of: tasks[1])
         #expect(!tasks[1].isAnchored)
