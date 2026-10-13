@@ -139,4 +139,15 @@ extension TaskItem {
             predicate: #Predicate { $0.deletedAt == nil && $0.statusRaw == inbox },
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
     }
+
+    /// Tâches posées sur un jour (statut filtré ensuite : `isOnDay`), dans l'ordre stocké.
+    public static func dayDescriptor(_ day: DayKey) -> FetchDescriptor<TaskItem> {
+        let target: String? = day
+        return FetchDescriptor(
+            predicate: #Predicate { $0.deletedAt == nil && $0.scheduledDate == target },
+            sortBy: [SortDescriptor(\.orderIndex)])
+    }
+
+    /// Posée sur un jour, faite ou non : une tâche faite garde sa place (cahier §4.4).
+    public var isOnDay: Bool { status == .scheduled || status == .done }
 }

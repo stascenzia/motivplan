@@ -48,6 +48,10 @@ struct TaskDetailView: View {
                 }
             }
 
+            if task.scheduledDate != nil {
+                timingSection
+            }
+
             Section("Détails") {
                 Picker("Catégorie", selection: Binding(
                     get: { task.category },
@@ -131,6 +135,59 @@ struct TaskDetailView: View {
         } message: {
             Text(errorMessage ?? "")
         }
+    }
+
+    /// Durée, heure fixe, position : réglages par boutons, sans sélecteur d'heure (principe 4).
+    private var timingSection: some View {
+        let duration = task.durationMin ?? Durations.fallback
+        return Section("Dans la journée") {
+            HStack {
+                LabeledContent("Durée", value: TimeText.duration(duration))
+                stepButton("−15") { try store.setDuration(max(duration - 15, Durations.minimum), of: task) }
+                    .disabled(duration <= Durations.minimum)
+                stepButton("+15") { try store.setDuration(duration + 15, of: task) }
+            }
+
+            Toggle("Heure fixe", isOn: Binding(
+                get: { task.isAnchored },
+                set: { on in run { try store.setAnchor(on ? TimeText.nextRoundHour() : nil, of: task) } }
+            ))
+
+            if task.isAnchored, let start = task.anchorTime {
+                HStack(spacing: 6) {
+                    Text(TimeText.clock(start))
+                        .font(.title3.monospacedDigit().weight(.semibold))
+                    Spacer()
+                    stepButton("−1 h") { try store.setAnchor(start - 60, of: task) }
+                    stepButton("−15") { try store.setAnchor(start - 15, of: task) }
+                    stepButton("+15") { try store.setAnchor(start + 15, of: task) }
+                    stepButton("+1 h") { try store.setAnchor(start + 60, of: task) }
+                }
+            } else {
+                // Repli sans glisser pour réordonner (ADR-008).
+                HStack {
+                    Text("Position")
+                    Spacer()
+                    stepButton("Monter", systemImage: "arrow.up") { try store.move(task, by: -1) }
+                    stepButton("Descendre", systemImage: "arrow.down") { try store.move(task, by: 1) }
+                }
+            }
+        }
+    }
+
+    private func stepButton(_ title: String, systemImage: String? = nil,
+                            action: @escaping () throws -> Void) -> some View {
+        Button {
+            run(action)
+        } label: {
+            if let systemImage {
+                Label(title, systemImage: systemImage).labelStyle(.iconOnly)
+            } else {
+                Text(title).monospacedDigit()
+            }
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
     }
 
     /// Titre et notes s'enregistrent en quittant le champ. Un titre vidé reprend l'ancien.

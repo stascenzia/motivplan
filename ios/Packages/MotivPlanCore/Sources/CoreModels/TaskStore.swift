@@ -113,6 +113,69 @@ public struct TaskStore {
         try save()
     }
 
+    /// Pose la tâche sur un jour à une position de la séquence affichée (drop depuis le tiroir).
+    /// Une ancre ignore la position : son heure décide.
+    public func place(_ task: TaskItem, on day: DayKey, at position: Int) throws {
+        try schedule(task, on: day)
+        try move(task, to: position)
+    }
+
+    /// Réordonne une flottante dans son jour. Une seule écriture dans le cas courant (indices à trous).
+    public func move(_ task: TaskItem, to position: Int) throws {
+        guard let day = task.scheduledDate, !task.isAnchored else { return }
+        let dayTasks = try tasks(on: day)
+        let changes = Sequencing.move(id: task.id, to: position,
+                                      in: dayTasks.compactMap(\.timelineItem), dayStart: settings.dayStart)
+        apply(changes, to: dayTasks)
+        try save()
+    }
+
+    /// Monte (-1) ou descend (+1) d'un cran dans la séquence affichée : repli sans glisser.
+    public func move(_ task: TaskItem, by offset: Int) throws {
+        guard let day = task.scheduledDate else { return }
+        let sequence = layout(of: try tasks(on: day)).sequence
+        guard let current = sequence.firstIndex(of: task.id) else { return }
+        try move(task, to: current + offset)
+    }
+
+    /// Fixe l'heure d'une ancre, ou la désancre (`nil`). L'ancre prend sa place parmi les ancres.
+    public func setAnchor(_ start: Minutes?, of task: TaskItem) throws {
+        let clamped = start.map { min(max($0, 0), 24 * 60 - Durations.minimum) }
+        guard clamped != task.anchorTime || (clamped != nil) != task.isAnchored else { return }
+        task.isAnchored = clamped != nil
+        task.anchorTime = clamped
+        if let day = task.scheduledDate {
+            let dayTasks = try tasks(on: day)
+            if let clamped {
+                let others = dayTasks.filter { $0.id != task.id }
+                let changes = Sequencing.slotAnchor(
+                    id: task.id, anchorStart: clamped, durationMin: task.durationMin ?? Durations.fallback,
+                    into: others.compactMap(\.timelineItem), dayStart: settings.dayStart)
+                apply(changes, to: dayTasks)
+            } else {
+                try normalizeDay(day)
+            }
+        }
+        try commit(task)
+    }
+
+    /// Cocher ne décale rien : la tâche garde sa place et sa durée (cahier §4.4).
+    public func toggleDone(_ task: TaskItem) throws {
+        if task.isDone {
+            task.statusRaw = (task.scheduledDate == nil ? TaskStatus.inbox : TaskStatus.scheduled).rawValue
+            task.completedAt = nil
+        } else {
+            task.statusRaw = TaskStatus.done.rawValue
+            task.completedAt = now()
+        }
+        try commit(task)
+    }
+
+    /// Calcul des heures du jour par le moteur.
+    public func layout(of dayTasks: [TaskItem]) -> DayLayout {
+        TimelineEngine.layoutDay(dayStart: settings.dayStart, items: dayTasks.compactMap(\.timelineItem))
+    }
+
     /// Remet la tâche en boîte de réception. La durée est gardée comme suggestion.
     public func unschedule(_ task: TaskItem) throws {
         let previousDay = task.scheduledDate
@@ -149,11 +212,7 @@ public struct TaskStore {
 
     /// Tâches posées sur un jour, faites comprises, dans l'ordre stocké.
     public func tasks(on day: DayKey) throws -> [TaskItem] {
-        let target: String? = day
-        let descriptor = FetchDescriptor<TaskItem>(
-            predicate: #Predicate { $0.deletedAt == nil && $0.scheduledDate == target },
-            sortBy: [SortDescriptor(\.orderIndex)])
-        return try context.fetch(descriptor).filter { $0.status == .scheduled || $0.status == .done }
+        try context.fetch(TaskItem.dayDescriptor(day)).filter(\.isOnDay)
     }
 
     /// Tâches posées entre deux jours inclus (vue semaine).

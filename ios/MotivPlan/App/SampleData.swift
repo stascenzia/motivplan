@@ -25,6 +25,33 @@ enum SampleData {
             let passport = try store.capture("Renouveler le passeport", source: .manual)
             try store.setCategory(.moyenne, of: passport)
             try store.setNotes("Photo d'identité + justificatif de domicile.", of: passport)
+
+            // Journée d'aujourd'hui : une tâche faite, une ancre qui pousse une flottante.
+            let today = store.today
+            let plan: [(String, TaskCategory, Int)] = [
+                ("Trier les mails", .quotidienne, 30),
+                ("Préparer la présentation", .longue, 90),
+                ("Appeler la banque", .courte, 30),
+                ("Sport", .moyenne, 45),
+            ]
+            for (title, category, minutes) in plan {
+                let task = try store.capture(title, source: .manual)
+                try store.setCategory(category, of: task)
+                try store.setDuration(minutes, of: task)
+                try store.schedule(task, on: today)
+            }
+            let meeting = try store.capture("Point d'équipe", source: .manual)
+            try store.setCategory(.pro, of: meeting)
+            try store.setDuration(45, of: meeting)
+            try store.schedule(meeting, on: today)
+            try store.setAnchor(11 * 60 + 15, of: meeting)
+            let lunch = try store.capture("Déjeuner avec Léa", source: .manual)
+            try store.setDuration(60, of: lunch)
+            try store.schedule(lunch, on: today)
+            try store.setAnchor(13 * 60, of: lunch)
+            if let first = try store.tasks(on: today).first(where: { $0.title == "Trier les mails" }) {
+                try store.toggleDone(first)
+            }
         } catch {
             assertionFailure("Données d'exemple : \(error)")
         }

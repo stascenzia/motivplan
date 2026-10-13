@@ -8,28 +8,50 @@ final class ScreenshotTests: XCTestCase {
     }
 
     @MainActor
+    func testDayScreens() throws {
+        let app = launch()
+
+        XCTAssertTrue(element(app, "Préparer la présentation").waitForExistence(timeout: 10))
+        snapshot(app, "01-jour")
+
+        app.buttons["drawer-handle"].tap()
+        XCTAssertTrue(element(app, "Appeler le plombier").waitForExistence(timeout: 5))
+        snapshot(app, "02-jour-tiroir")
+        app.buttons["drawer-handle"].tap()
+
+        element(app, "Point d'équipe").tap()
+        XCTAssertTrue(app.navigationBars["Tâche"].waitForExistence(timeout: 5))
+        snapshot(app, "03-detail-ancre")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+
+        app.buttons["Réglages"].tap()
+        XCTAssertTrue(app.navigationBars["Réglages"].waitForExistence(timeout: 5))
+        snapshot(app, "04-reglages")
+        app.buttons["OK"].tap()
+    }
+
+    @MainActor
     func testInboxScreens() throws {
-        let app = XCUIApplication()
-        app.launchArguments = ["-ui-testing"]
-        app.launch()
+        let app = launch()
+        app.tabBars.buttons["Boîte"].tap()
 
         let plumber = element(app, "Appeler le plombier")
         XCTAssertTrue(plumber.waitForExistence(timeout: 10))
-        snapshot(app, "01-boite-de-reception")
+        snapshot(app, "11-boite-de-reception")
 
         plumber.press(forDuration: 1.2)
         XCTAssertTrue(app.buttons["Planifier"].waitForExistence(timeout: 5))
-        snapshot(app, "02-menu-contextuel")
+        snapshot(app, "12-menu-contextuel")
         app.buttons["Planifier"].tap()
-        snapshot(app, "03-sous-menu-planifier")
+        snapshot(app, "13-sous-menu-planifier")
         app.buttons["Planifier le…"].tap()
         XCTAssertTrue(app.buttons["Valider"].waitForExistence(timeout: 5))
-        snapshot(app, "04-planifier-le")
+        snapshot(app, "14-planifier-le")
         app.buttons["Annuler"].tap()
 
         element(app, "Renouveler le passeport").tap()
         XCTAssertTrue(app.navigationBars["Tâche"].waitForExistence(timeout: 5))
-        snapshot(app, "05-detail")
+        snapshot(app, "15-detail")
         app.navigationBars.buttons.element(boundBy: 0).tap()
 
         let field = app.textFields["capture-field"]
@@ -37,7 +59,15 @@ final class ScreenshotTests: XCTestCase {
         field.tap()
         field.typeText("Racheter du café\n")
         XCTAssertTrue(element(app, "Racheter du café").waitForExistence(timeout: 5))
-        snapshot(app, "06-apres-capture")
+        snapshot(app, "16-apres-capture")
+    }
+
+    @MainActor
+    private func launch() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing"]
+        app.launch()
+        return app
     }
 
     /// Une ligne de liste regroupe ses textes dans un seul libellé : on cherche par début de libellé.

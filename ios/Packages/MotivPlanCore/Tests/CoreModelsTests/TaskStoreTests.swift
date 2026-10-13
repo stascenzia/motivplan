@@ -110,6 +110,69 @@ struct TaskStoreTests {
         #expect(task.isOverdue(today: store.today))
     }
 
+    private func day(_ titles: [String], minutes: Int = 30) throws -> [TaskItem] {
+        try titles.map { title in
+            let task = try store.capture(title, source: .manual)
+            try store.setDuration(minutes, of: task)
+            try store.schedule(task, on: store.today)
+            return task
+        }
+    }
+
+    private func displayed() throws -> [String] {
+        let tasks = try store.tasks(on: store.today)
+        let byId = Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0.title) })
+        return store.layout(of: tasks).sequence.compactMap { byId[$0] }
+    }
+
+    @Test("Déposer à une position du jour")
+    func placeAtPosition() throws {
+        _ = try day(["A", "B"])
+        let dropped = try store.capture("C", source: .manual)
+        try store.place(dropped, on: store.today, at: 1)
+        #expect(try displayed() == ["A", "C", "B"])
+    }
+
+    @Test("Monter et descendre d'un cran")
+    func moveByOne() throws {
+        let tasks = try day(["A", "B", "C"])
+        try store.move(tasks[2], by: -1)
+        #expect(try displayed() == ["A", "C", "B"])
+        try store.move(tasks[0], by: 1)
+        #expect(try displayed() == ["C", "A", "B"])
+    }
+
+    @Test("Ancrer une tâche la place à son heure et pousse les flottantes (T2)")
+    func anchorPushesFloats() throws {
+        let tasks = try day(["A", "M", "B"], minutes: 30)
+        try store.setDuration(90, of: tasks[0])
+        try store.setDuration(60, of: tasks[1])
+        try store.setAnchor(10 * 60, of: tasks[1])
+        // A 09:00–10:30 déborderait sur M 10:00 : poussée entière après M.
+        #expect(try displayed() == ["M", "A", "B"])
+        let layout = store.layout(of: try store.tasks(on: store.today))
+        let a = try #require(layout.placements.first { $0.id == tasks[0].id })
+        #expect(a.start == 11 * 60)
+        #expect(a.pushedPastAnchor == tasks[1].id)
+
+        try store.setAnchor(nil, of: tasks[1])
+        #expect(!tasks[1].isAnchored)
+        #expect(tasks[1].anchorTime == nil)
+    }
+
+    @Test("Cocher ne décale rien et se défait")
+    func toggleDone() throws {
+        let tasks = try day(["A", "B"])
+        let before = store.layout(of: try store.tasks(on: store.today))
+        try store.toggleDone(tasks[0])
+        #expect(tasks[0].isDone)
+        #expect(tasks[0].completedAt != nil)
+        #expect(store.layout(of: try store.tasks(on: store.today)) == before)
+        try store.toggleDone(tasks[0])
+        #expect(tasks[0].status == .scheduled)
+        #expect(tasks[0].completedAt == nil)
+    }
+
     @Test("Une édition sans changement ne touche pas updatedAt")
     func noOpEdit() throws {
         let task = try store.capture("Lire", source: .manual)
