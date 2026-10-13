@@ -5,7 +5,8 @@ import Foundation
 // Spike Siri hors-ligne du lot 0 (ADR-003). Écrit dans les UserDefaults de l'App Group,
 // sans SwiftData. Remplacé par AddTaskIntent dans CoreIntents au lot 4.
 
-enum SpikeLog {
+// nonisolated : appelé depuis perform(), qui ne tourne pas sur le MainActor. UserDefaults est thread-safe.
+nonisolated enum SpikeLog {
     private static let key = "spike.captures"
 
     static func append(_ title: String) {

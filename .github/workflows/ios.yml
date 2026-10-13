@@ -25,7 +25,7 @@ jobs:
     timeout-minutes: 10
     container: swift:6.2
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: swift test --package-path ios/Packages/TimelineEngine
 
   app:
@@ -37,7 +37,7 @@ jobs:
       run:
         working-directory: ios
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Sélection du Xcode le plus récent
         run: |
           sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
