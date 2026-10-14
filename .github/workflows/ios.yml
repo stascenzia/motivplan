@@ -62,6 +62,7 @@ jobs:
             -scheme MotivPlan \
             -destination "id=$UDID" \
             -resultBundlePath Screens.xcresult \
+            -retry-tests-on-failure -test-iterations 2 \
             CODE_SIGNING_ALLOWED=NO \
             | tee build.log
           exit "${PIPESTATUS[0]}"

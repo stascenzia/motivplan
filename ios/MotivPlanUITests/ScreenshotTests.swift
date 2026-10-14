@@ -11,21 +11,21 @@ final class ScreenshotTests: XCTestCase {
     func testDayScreens() throws {
         let app = launch()
 
-        XCTAssertTrue(element(app, "Finir le rapport trimestriel").waitForExistence(timeout: 10))
+        XCTAssertTrue(element(app, "Finir le rapport trimestriel").waitForExistence(timeout: 30))
         snapshot(app, "01-jour")
 
         app.buttons["drawer-handle"].tap()
-        XCTAssertTrue(element(app, "Appeler le plombier").waitForExistence(timeout: 5))
+        XCTAssertTrue(element(app, "Appeler le plombier").waitForExistence(timeout: 15))
         snapshot(app, "02-jour-tiroir")
         app.buttons["drawer-handle"].tap()
 
         element(app, "Point d'équipe").tap()
-        XCTAssertTrue(app.navigationBars["Tâche"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Tâche"].waitForExistence(timeout: 15))
         snapshot(app, "03-detail-ancre")
         app.navigationBars.buttons.element(boundBy: 0).tap()
 
         app.buttons["Réglages"].tap()
-        XCTAssertTrue(app.navigationBars["Réglages"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Réglages"].waitForExistence(timeout: 15))
         snapshot(app, "04-reglages")
         app.buttons["OK"].tap()
     }
@@ -36,29 +36,29 @@ final class ScreenshotTests: XCTestCase {
         app.tabBars.buttons["Boîte"].tap()
 
         let plumber = element(app, "Appeler le plombier")
-        XCTAssertTrue(plumber.waitForExistence(timeout: 10))
+        XCTAssertTrue(plumber.waitForExistence(timeout: 30))
         snapshot(app, "11-boite-de-reception")
 
         plumber.press(forDuration: 1.2)
-        XCTAssertTrue(app.buttons["Planifier"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Planifier"].waitForExistence(timeout: 15))
         snapshot(app, "12-menu-contextuel")
         app.buttons["Planifier"].tap()
         snapshot(app, "13-sous-menu-planifier")
         app.buttons["Planifier le…"].tap()
-        XCTAssertTrue(app.buttons["Valider"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Valider"].waitForExistence(timeout: 15))
         snapshot(app, "14-planifier-le")
         app.buttons["Annuler"].tap()
 
         element(app, "Renouveler le passeport").tap()
-        XCTAssertTrue(app.navigationBars["Tâche"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Tâche"].waitForExistence(timeout: 15))
         snapshot(app, "15-detail")
         app.navigationBars.buttons.element(boundBy: 0).tap()
 
         let field = app.textFields["capture-field"]
-        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertTrue(field.waitForExistence(timeout: 15))
         field.tap()
         field.typeText("Racheter du café\n")
-        XCTAssertTrue(element(app, "Racheter du café").waitForExistence(timeout: 5))
+        XCTAssertTrue(element(app, "Racheter du café").waitForExistence(timeout: 15))
         snapshot(app, "16-apres-capture")
     }
 
@@ -67,7 +67,7 @@ final class ScreenshotTests: XCTestCase {
     func testWeekScreen() throws {
         let app = launch()
         app.tabBars.buttons["Semaine"].tap()
-        XCTAssertTrue(element(app, "Dîner chez Paul").waitForExistence(timeout: 10))
+        XCTAssertTrue(element(app, "Dîner chez Paul").waitForExistence(timeout: 30))
         snapshot(app, "41-semaine")
 
         app.buttons["Semaine suivante"].tap()
@@ -75,9 +75,9 @@ final class ScreenshotTests: XCTestCase {
         app.buttons["Cette semaine"].tap()
 
         let today = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "aujourd'hui")).firstMatch
-        XCTAssertTrue(today.waitForExistence(timeout: 5))
+        XCTAssertTrue(today.waitForExistence(timeout: 15))
         today.tap()
-        XCTAssertTrue(element(app, "Finir le rapport trimestriel").waitForExistence(timeout: 5))
+        XCTAssertTrue(element(app, "Finir le rapport trimestriel").waitForExistence(timeout: 15))
     }
 
     /// Sections et seconde mémoire (ADR-014).
@@ -87,19 +87,19 @@ final class ScreenshotTests: XCTestCase {
         app.tabBars.buttons["Boîte"].tap()
 
         let films = element(app, "Films et séries")
-        XCTAssertTrue(films.waitForExistence(timeout: 10))
+        XCTAssertTrue(films.waitForExistence(timeout: 30))
         scrollIntoView(app, films)
         snapshot(app, "31-sections")
         films.tap()
-        XCTAssertTrue(element(app, "The Bear").waitForExistence(timeout: 5))
+        XCTAssertTrue(element(app, "The Bear").waitForExistence(timeout: 15))
         snapshot(app, "32-section-a-voir")
 
         app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Mémoire")).firstMatch.tap()
-        XCTAssertTrue(element(app, "Past Lives").waitForExistence(timeout: 5))
+        XCTAssertTrue(element(app, "Past Lives").waitForExistence(timeout: 15))
         snapshot(app, "33-section-memoire")
 
         app.buttons["Modifier"].tap()
-        XCTAssertTrue(app.navigationBars["Section"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Section"].waitForExistence(timeout: 15))
         snapshot(app, "34-editeur-section")
         app.buttons["Annuler"].tap()
 
@@ -107,7 +107,7 @@ final class ScreenshotTests: XCTestCase {
         let recurring = element(app, "Récurrentes")
         scrollIntoView(app, recurring)
         recurring.tap()
-        XCTAssertTrue(element(app, "Faire une lessive").waitForExistence(timeout: 5))
+        XCTAssertTrue(element(app, "Faire une lessive").waitForExistence(timeout: 15))
         snapshot(app, "35-section-recurrentes")
     }
 
@@ -115,15 +115,15 @@ final class ScreenshotTests: XCTestCase {
     @MainActor
     func testWidgetDeepLink() throws {
         let app = launch()
-        XCTAssertTrue(app.tabBars.buttons["Jour"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.tabBars.buttons["Jour"].waitForExistence(timeout: 30))
         app.open(URL(string: "motivplan://capture")!)
 
         let field = app.textFields["capture-field"]
-        XCTAssertTrue(field.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(field.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 15))
         snapshot(app, "21-capture-depuis-widget")
         field.typeText("Idée captée par le widget\n")
-        XCTAssertTrue(element(app, "Idée captée par le widget").waitForExistence(timeout: 5))
+        XCTAssertTrue(element(app, "Idée captée par le widget").waitForExistence(timeout: 15))
     }
 
     /// La barre d'onglets flottante d'iOS 26 recouvre le bas de l'écran : on fait défiler

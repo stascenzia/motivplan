@@ -2,6 +2,7 @@ import AppIntents
 import CoreModels
 import SwiftData
 import SwiftUI
+import UIKit
 
 @main
 struct MotivPlanApp: App {
@@ -15,6 +16,8 @@ struct MotivPlanApp: App {
         self.provider = provider
         if uiTesting, let container = provider.container {
             SampleData.seed(into: container.mainContext)
+            // Sans animations, le testeur lit l'écran sans attendre qu'il se stabilise (CI lente).
+            UIView.setAnimationsEnabled(false)
         }
         // Seule chose garantie quand Siri lance l'app en arrière-plan : App.init (plan, §Architecture).
         AppDependencyManager.shared.add(dependency: { provider })
