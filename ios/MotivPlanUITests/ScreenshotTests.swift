@@ -70,6 +70,7 @@ final class ScreenshotTests: XCTestCase {
 
         let films = element(app, "Films et séries")
         XCTAssertTrue(films.waitForExistence(timeout: 10))
+        scrollIntoView(app, films)
         snapshot(app, "31-sections")
         films.tap()
         XCTAssertTrue(element(app, "The Bear").waitForExistence(timeout: 5))
@@ -85,7 +86,9 @@ final class ScreenshotTests: XCTestCase {
         app.buttons["Annuler"].tap()
 
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        element(app, "Récurrentes").tap()
+        let recurring = element(app, "Récurrentes")
+        scrollIntoView(app, recurring)
+        recurring.tap()
         XCTAssertTrue(element(app, "Faire une lessive").waitForExistence(timeout: 5))
         snapshot(app, "35-section-recurrentes")
     }
@@ -103,6 +106,16 @@ final class ScreenshotTests: XCTestCase {
         snapshot(app, "21-capture-depuis-widget")
         field.typeText("Idée captée par le widget\n")
         XCTAssertTrue(element(app, "Idée captée par le widget").waitForExistence(timeout: 5))
+    }
+
+    /// La barre d'onglets flottante d'iOS 26 recouvre le bas de l'écran : on fait défiler
+    /// doucement jusqu'à ce que l'élément soit au-dessus.
+    @MainActor
+    private func scrollIntoView(_ app: XCUIApplication, _ element: XCUIElement) {
+        let limit = app.frame.height * 0.7
+        for _ in 0..<6 where element.frame.maxY > limit {
+            app.collectionViews.firstMatch.swipeUp(velocity: .slow)
+        }
     }
 
     @MainActor
