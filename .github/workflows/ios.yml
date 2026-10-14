@@ -31,7 +31,9 @@ jobs:
   app:
     name: App (macOS)
     needs: engine
-    runs-on: macos-latest
+    # Mac Intel : les runners Apple silicon (macos-latest) étaient saturés le 2026-10-14.
+    # Repasser à macos-latest quand ils redeviennent disponibles (builds plus rapides).
+    runs-on: macos-15-intel
     timeout-minutes: 25
     defaults:
       run:
