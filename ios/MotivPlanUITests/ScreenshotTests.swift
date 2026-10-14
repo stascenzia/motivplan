@@ -70,7 +70,6 @@ final class ScreenshotTests: XCTestCase {
 
         let films = element(app, "Films et séries")
         XCTAssertTrue(films.waitForExistence(timeout: 10))
-        app.swipeUp()
         snapshot(app, "31-sections")
         films.tap()
         XCTAssertTrue(element(app, "The Bear").waitForExistence(timeout: 5))

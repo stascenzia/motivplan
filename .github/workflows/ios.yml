@@ -70,16 +70,25 @@ jobs:
         run: |
           [ -d Screens.xcresult ] || exit 0
           xcrun xcresulttool export attachments --path Screens.xcresult --output-path screenshots
-          # Renomme les fichiers exportés avec le nom donné dans le test.
+          # Renomme les fichiers exportés avec le nom donné dans le test. Les noms automatiques
+          # (captures d'échec) peuvent contenir des caractères refusés par upload-artifact.
           python3 - <<'PY'
-          import json, os
+          import json, os, re
           manifest = json.load(open("screenshots/manifest.json"))
+          used = set()
           for test in manifest:
+              test_name = re.sub(r"[^\w-]+", "", test.get("testIdentifier", "").split("/")[-1])
               for a in test.get("attachments", []):
                   name = a.get("suggestedHumanReadableName") or a["exportedFileName"]
                   ext = os.path.splitext(a["exportedFileName"])[1]
-                  base = name.split("_")[0]
-                  os.rename(f"screenshots/{a['exportedFileName']}", f"screenshots/{base}{ext}")
+                  base = re.sub(r"[^\w.-]+", "-", os.path.splitext(name.split("_")[0])[0]).strip("-")
+                  if not re.match(r"^\d", base):
+                      base = f"echec-{test_name}-{base}"
+                  candidate, n = base, 2
+                  while candidate in used:
+                      candidate, n = f"{base}-{n}", n + 1
+                  used.add(candidate)
+                  os.rename(f"screenshots/{a['exportedFileName']}", f"screenshots/{candidate}{ext}")
           PY
       - name: Captures d'écran
         if: always()
