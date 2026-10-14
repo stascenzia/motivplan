@@ -1,4 +1,5 @@
 import CoreModels
+import Foundation
 import SwiftData
 import TimelineEngine
 
