@@ -171,6 +171,13 @@ Chaque lot se termine par un commit (Conventional Commits), une app installable 
 - Branchement de `rollover` sur `scenePhase == .active`, `lastRolloverDayKey`, transaction unique.
 - Critère 4 vérifié : changer la date du téléphone, rouvrir, aucune notification ni écran, tâches reportées, ancrées ratées en inbox avec pastille sobre.
 
+### Lot 5b — Sections et seconde mémoire (M, ajouté le 2026-10-14, ADR-014)
+
+- Moteur : `Durations` sans catégories (durée de la tâche, sinon suggestion de la section, sinon 30 min).
+- `CoreModels` : `TaskSection` (règles planifiable, mémoire, répétition), sections fournies au premier lancement, `TaskItem` avec `sectionId`, `tag`, `review`, `reviewNote` (catégorie et importance retirées). `TaskStore` : gestion des sections, terminer avec avis, quotidiennes posées au report, permanentes jamais consommées.
+- Boîte de réception : capture, « À trier », puis une ligne par section ; écran de section avec « À faire » et « Mémoire » ; éditeur de section. Tiroir limité aux sections planifiables. Détail : section, étiquette, avis.
+- Backend : table `sections`, nouvelles colonnes, sections dans `/sync`, tests.
+
 ### Lot 6 — Vue Semaine (M)
 
 - `moveTask(to day:)` dans `TaskStore` (changement de jour, ajout en fin de séquence, ancre conservée avec son heure et re-slotée).

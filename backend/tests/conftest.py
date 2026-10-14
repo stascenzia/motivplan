@@ -70,6 +70,22 @@ def task(**overrides: Any) -> dict[str, Any]:
     return base
 
 
+def section(**overrides: Any) -> dict[str, Any]:
+    base: dict[str, Any] = {
+        "id": str(uuid.uuid4()),
+        "name": "Films et séries",
+        "symbol": "film",
+        "sort_index": 1024,
+        "is_plannable": False,
+        "keeps_memory": True,
+        "repeat": "none",
+        "created_at": iso(T0),
+        "updated_at": iso(T0),
+    }
+    base.update(overrides)
+    return base
+
+
 def session_record(task_id: str, **overrides: Any) -> dict[str, Any]:
     base: dict[str, Any] = {
         "id": str(uuid.uuid4()),

@@ -7,24 +7,27 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import SyncedMixin, Task, WorkSession
-from app.schemas import SessionOut, SyncRequest, SyncResponse, TaskOut
+from app.models import SyncedMixin, Task, TaskSection, WorkSession
+from app.schemas import SectionOut, SessionOut, SyncRequest, SyncResponse, TaskOut
 
 
 def sync(db: Session, request: SyncRequest) -> SyncResponse:
     now = datetime.now(UTC)
 
     tasks_accepted, tasks_rejected = _upsert(db, Task, request.tasks, now)
+    sections_accepted, sections_rejected = _upsert(db, TaskSection, request.sections, now)
     sessions_accepted, sessions_rejected = _upsert(db, WorkSession, request.sessions, now)
     db.flush()
 
     tasks = _changes(db, Task, request.since, tasks_accepted, tasks_rejected)
+    sections = _changes(db, TaskSection, request.since, sections_accepted, sections_rejected)
     sessions = _changes(db, WorkSession, request.since, sessions_accepted, sessions_rejected)
     db.commit()
 
     return SyncResponse(
         server_time=now,
         tasks=[TaskOut.model_validate(row) for row in tasks],
+        sections=[SectionOut.model_validate(row) for row in sections],
         sessions=[SessionOut.model_validate(row) for row in sessions],
     )
 

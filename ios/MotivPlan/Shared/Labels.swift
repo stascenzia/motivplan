@@ -2,24 +2,68 @@ import CoreModels
 import SwiftUI
 import TimelineEngine
 
-extension TaskCategory {
+extension TaskTag {
     var label: String {
         switch self {
-        case .quotidienne: "Quotidienne"
-        case .courte: "Courte"
-        case .moyenne: "Moyenne"
-        case .longue: "Longue"
-        case .pro: "Pro"
+        case .urgent: "Urgent"
+        case .travail: "Travail"
+        case .medium: "Medium"
+        case .detente: "Détente"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .urgent: "bolt"
+        case .travail: "briefcase"
+        case .medium: "circle.lefthalf.filled"
+        case .detente: "leaf"
+        }
+    }
+
+    /// Teinte douce des bulles. « Urgent » reste ambre, jamais rouge (principe 2).
+    var tint: Color {
+        switch self {
+        case .urgent: .gentleWarning
+        case .travail: .purple
+        case .medium: .blue
+        case .detente: .mint
         }
     }
 }
 
-extension Importance {
+extension Review {
     var label: String {
         switch self {
-        case .basse: "Basse"
-        case .normale: "Normale"
-        case .haute: "Haute"
+        case .aime: "Aimé"
+        case .bof: "Bof"
+        case .pasAime: "Pas aimé"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .aime: "hand.thumbsup"
+        case .bof: "hand.raised"
+        case .pasAime: "hand.thumbsdown"
+        }
+    }
+}
+
+extension SectionRepeat {
+    var label: String {
+        switch self {
+        case .none: "Ponctuelle"
+        case .daily: "Chaque jour"
+        case .permanent: "Toujours disponible"
+        }
+    }
+
+    var explanation: String {
+        switch self {
+        case .none: "Une fois faite, la tâche est terminée."
+        case .daily: "Posée seule dans la journée chaque matin, cochée ou non la veille."
+        case .permanent: "Cochée, elle reste dans la boîte avec la date de la dernière fois."
         }
     }
 }
@@ -40,5 +84,16 @@ enum DayLabel {
         return sameYear
             ? date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
             : date.formatted(.dateTime.day().month(.abbreviated).year())
+    }
+
+    /// « aujourd'hui », « hier », « il y a 4 jours », sinon la date.
+    static func since(_ date: Date, today: DayKey) -> String {
+        let day = DayKeys.key(for: date)
+        if day == today { return "aujourd'hui" }
+        if day == DayKeys.adding(-1, to: today) { return "hier" }
+        for days in 2...6 where day == DayKeys.adding(-days, to: today) {
+            return "il y a \(days) jours"
+        }
+        return "le " + date.formatted(.dateTime.day().month(.abbreviated))
     }
 }

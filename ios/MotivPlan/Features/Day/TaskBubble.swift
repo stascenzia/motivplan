@@ -63,14 +63,7 @@ struct TaskBubble: View {
     }
 
     private var fill: Color {
-        switch task.category {
-        case .quotidienne: .mint.opacity(0.18)
-        case .courte: .teal.opacity(0.18)
-        case .moyenne: .blue.opacity(0.16)
-        case .longue: .indigo.opacity(0.18)
-        case .pro: .purple.opacity(0.16)
-        case nil: .gray.opacity(0.14)
-        }
+        task.tag.map { $0.tint.opacity(0.17) } ?? .gray.opacity(0.14)
     }
 }
 

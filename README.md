@@ -40,7 +40,7 @@ MOTIVPLAN_TEST_DATABASE_URL=postgresql+psycopg://... uv run pytest   # même sui
 MOTIVPLAN_API_TOKEN=dev uv run uvicorn app.main:app --reload         # http://localhost:8000/docs
 ```
 
-API : `GET /health` (sans jeton), `POST /sync`, routes de débogage `GET /tasks`, `/sessions`, `/days/{yyyy-mm-dd}`, `/progress`. Toutes sauf `/health` exigent `Authorization: Bearer <MOTIVPLAN_API_TOKEN>`.
+API : `GET /health` (sans jeton), `POST /sync`, routes de débogage `GET /tasks`, `/sections`, `/sessions`, `/days/{yyyy-mm-dd}`, `/progress`. Toutes sauf `/health` exigent `Authorization: Bearer <MOTIVPLAN_API_TOKEN>`.
 
 Nouvelle migration après un changement de modèle : `uv run alembic revision --autogenerate -m "..."`, puis remplacer `app.db.UTCDateTime(...)` par `sa.DateTime(timezone=True)` dans le fichier généré. `tests/test_migrations.py` échoue si migrations et modèles divergent.
 

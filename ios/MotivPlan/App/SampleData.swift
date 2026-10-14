@@ -8,64 +8,76 @@ enum SampleData {
 
     static func seed(into context: ModelContext) {
         let store = TaskStore(context: context, settings: AppSettings())
+        // Réglages éphémères : chaque lancement de test refait sections et report.
+        guard let volatile = UserDefaults(suiteName: "ui-testing.\(UUID().uuidString)") else { return }
         do {
-            let plumber = try store.capture("Appeler le plombier", source: .siri)
-            try store.setDueDate(DayKeys.adding(-2, to: store.today), of: plumber)
-            try store.setImportance(.haute, of: plumber)
-
-            let report = try store.capture("Finir le rapport trimestriel", source: .manual)
-            try store.setCategory(.pro, of: report)
-            try store.setDueDate(store.endOfThisWeek, of: report)
-
-            let gifts = try store.capture("Idées de cadeaux pour Noël", source: .widget)
-            try store.setCategory(.courte, of: gifts)
-
-            try store.capture("Lire l'article sur le sommeil", source: .manual)
-
-            let passport = try store.capture("Renouveler le passeport", source: .manual)
-            try store.setCategory(.moyenne, of: passport)
-            try store.setNotes("Photo d'identité + justificatif de domicile.", of: passport)
-
-            // Journée d'aujourd'hui : une tâche faite, une ancre qui pousse une flottante.
+            try store.ensureDefaultSections(defaults: volatile)
+            let sections = Dictionary(uniqueKeysWithValues: try store.sections().map { ($0.name, $0) })
             let today = store.today
-            let plan: [(String, TaskCategory, Int)] = [
-                ("Trier les mails", .quotidienne, 30),
-                ("Préparer la présentation", .longue, 90),
-                ("Appeler la banque", .courte, 30),
-                ("Sport", .moyenne, 45),
-            ]
-            for (title, category, minutes) in plan {
+
+            // À trier : captures récentes, pas encore rangées.
+            let plumber = try store.capture("Appeler le plombier", source: .siri)
+            try store.setDueDate(DayKeys.adding(-2, to: today), of: plumber)
+            try store.setTag(.urgent, of: plumber)
+            let passport = try store.capture("Renouveler le passeport", source: .manual)
+            try store.setNotes("Photo d'identité + justificatif de domicile.", of: passport)
+            try store.capture("Lire l'article sur le sommeil", source: .widget)
+
+            func add(_ title: String, to section: String, tag: TaskTag? = nil) throws -> TaskItem {
                 let task = try store.capture(title, source: .manual)
-                try store.setCategory(category, of: task)
-                try store.setDuration(minutes, of: task)
-                try store.schedule(task, on: today)
+                try store.setSection(sections[section], of: task)
+                if let tag { try store.setTag(tag, of: task) }
+                return task
             }
-            let meeting = try store.capture("Point d'équipe", source: .manual)
-            try store.setCategory(.pro, of: meeting)
+
+            // Quotidiennes : posées seules aujourd'hui.
+            let bed = try add("Faire le lit", to: "Quotidiennes", tag: .medium)
+            _ = try add("Vider la litière de Stella", to: "Quotidiennes", tag: .medium)
+
+            // Récurrentes : toujours disponibles, avec la dernière fois.
+            let laundry = try add("Faire une lessive", to: "Récurrentes")
+            try store.toggleDone(laundry)
+            _ = try add("Descendre les poubelles", to: "Récurrentes")
+
+            // Ponctuelles, planifiées aujourd'hui avec une ancre.
+            let report = try add("Finir le rapport trimestriel", to: "Ponctuelles", tag: .travail)
+            try store.setDueDate(store.endOfThisWeek, of: report)
+            try store.setDuration(90, of: report)
+            try store.schedule(report, on: today)
+            let bank = try add("Appeler la banque", to: "Ponctuelles", tag: .urgent)
+            try store.schedule(bank, on: today)
+            let meeting = try add("Point d'équipe", to: "Ponctuelles", tag: .travail)
             try store.setDuration(45, of: meeting)
             try store.schedule(meeting, on: today)
             try store.setAnchor(11 * 60 + 15, of: meeting)
-            let lunch = try store.capture("Déjeuner avec Léa", source: .manual)
-            try store.setDuration(60, of: lunch)
-            try store.schedule(lunch, on: today)
-            try store.setAnchor(13 * 60, of: lunch)
-            if let first = try store.tasks(on: today).first(where: { $0.title == "Trier les mails" }) {
-                try store.toggleDone(first)
-            }
+            let sport = try add("Sport", to: "Ponctuelles", tag: .detente)
+            try store.setDuration(45, of: sport)
+            try store.schedule(sport, on: today)
+            _ = try add("Envoyer le courrier", to: "Ponctuelles")
+            try store.toggleDone(bed)
+
+            // Hors planning, avec mémoire.
+            _ = try add("Lait d'avoine", to: "Courses")
+            _ = try add("Café en grains", to: "Courses")
+            _ = try add("The Bear, saison 3", to: "Films et séries", tag: .detente)
+            _ = try add("Dune, deuxième partie", to: "Films et séries", tag: .detente)
+            let seen = try add("Past Lives", to: "Films et séries")
+            try store.complete(seen, review: .aime, note: "Tout en retenue, très beau.")
+            let meh = try add("Rebel Moon", to: "Films et séries")
+            try store.complete(meh, review: .pasAime, note: nil)
+            let curry = try add("Curry de lentilles corail", to: "Recettes")
+            try store.complete(curry, review: .aime, note: "Ajouter du citron vert à la fin.")
 
             // Restes d'hier : reportés en silence au lancement (ADR-007).
             if let yesterday = DayKeys.adding(-1, to: today) {
-                let contract = try store.capture("Relire le contrat", source: .manual)
+                let contract = try add("Relire le contrat", to: "Ponctuelles", tag: .travail)
                 try store.setDuration(30, of: contract)
                 try store.schedule(contract, on: yesterday)
-                let dentist = try store.capture("Rendez-vous dentiste", source: .manual)
+                let dentist = try add("Rendez-vous dentiste", to: "Ponctuelles")
                 try store.schedule(dentist, on: yesterday)
                 try store.setAnchor(17 * 60, of: dentist)
             }
-            // Réglages éphémères : chaque lancement de test refait le report.
-            if let volatile = UserDefaults(suiteName: "ui-testing.\(UUID().uuidString)") {
-                try store.rollover(defaults: volatile)
-            }
+            try store.rollover(defaults: volatile)
         } catch {
             assertionFailure("Données d'exemple : \(error)")
         }

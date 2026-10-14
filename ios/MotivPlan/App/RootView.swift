@@ -30,7 +30,9 @@ struct RootView: View {
         // Report silencieux à la première ouverture après minuit (ADR-007) : ni écran ni notification.
         .onChange(of: scenePhase, initial: true) { _, phase in
             if phase == .active {
-                _ = try? TaskStore(context: context).rollover()
+                let store = TaskStore(context: context)
+                try? store.ensureDefaultSections()
+                _ = try? store.rollover()
             }
         }
     }

@@ -9,6 +9,8 @@ struct TaskDetailView: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Query(TaskSection.orderedDescriptor) private var sections: [TaskSection]
+    @State private var reviewing = false
     @State private var title = ""
     @State private var notes = ""
     @State private var dayPicker: DayPickerRequest?
@@ -52,21 +54,25 @@ struct TaskDetailView: View {
                 timingSection
             }
 
+            if sections.section(of: task)?.keepsMemory == true {
+                memorySection
+            }
+
             Section("Détails") {
-                Picker("Catégorie", selection: Binding(
-                    get: { task.category },
-                    set: { value in run { try store.setCategory(value, of: task) } }
+                Picker("Section", selection: Binding(
+                    get: { task.sectionId },
+                    set: { id in run { try store.setSection(sections.first { $0.id == id }, of: task) } }
                 )) {
-                    Text("Aucune").tag(TaskCategory?.none)
-                    ForEach(TaskCategory.allCases, id: \.self) { Text($0.label).tag(Optional($0)) }
+                    Text("À trier").tag(UUID?.none)
+                    ForEach(sections) { Text($0.name).tag(Optional($0.id)) }
                 }
 
-                Picker("Importance", selection: Binding(
-                    get: { task.importance },
-                    set: { value in run { try store.setImportance(value, of: task) } }
+                Picker("Étiquette", selection: Binding(
+                    get: { task.tag },
+                    set: { value in run { try store.setTag(value, of: task) } }
                 )) {
-                    Text("Non précisée").tag(Importance?.none)
-                    ForEach(Importance.allCases, id: \.self) { Text($0.label).tag(Optional($0)) }
+                    Text("Aucune").tag(TaskTag?.none)
+                    ForEach(TaskTag.allCases, id: \.self) { Text($0.label).tag(Optional($0)) }
                 }
 
                 Button {
@@ -134,6 +140,28 @@ struct TaskDetailView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorMessage ?? "")
+        }
+    }
+
+    /// Mémoire : avis et commentaire, ou terminer avec un avis (ADR-014).
+    private var memorySection: some View {
+        Section("Mémoire") {
+            if task.isDone {
+                LabeledContent("Avis", value: task.review?.label ?? "Aucun")
+                if let note = task.reviewNote {
+                    Text(note).foregroundStyle(.secondary)
+                }
+                if let done = task.completedAt {
+                    LabeledContent("Terminé", value: done.formatted(date: .abbreviated, time: .omitted))
+                }
+                Button("Modifier l'avis", systemImage: "hand.thumbsup") { reviewing = true }
+                Button("Remettre à faire", systemImage: "arrow.uturn.backward") { run { try store.toggleDone(task) } }
+            } else {
+                Button("C'est fait…", systemImage: "checkmark.circle") { reviewing = true }
+            }
+        }
+        .sheet(isPresented: $reviewing) {
+            ReviewSheet(task: task) { review, note in run { try store.complete(task, review: review, note: note) } }
         }
     }
 

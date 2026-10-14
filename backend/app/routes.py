@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 from app import sync as sync_service
 from app.auth import require_token
 from app.db import get_session
-from app.models import Task, WorkSession
-from app.schemas import DayOut, SessionOut, SyncRequest, SyncResponse, TaskOut
+from app.models import Task, TaskSection, WorkSession
+from app.schemas import DayOut, SectionOut, SessionOut, SyncRequest, SyncResponse, TaskOut
 
 DbSession = Annotated[Session, Depends(get_session)]
 
@@ -30,6 +30,14 @@ def list_tasks(db: DbSession, include_deleted: bool = False) -> list[TaskOut]:
     if not include_deleted:
         query = query.where(Task.deleted_at.is_(None))
     return [TaskOut.model_validate(row) for row in db.scalars(query)]
+
+
+@router.get("/sections")
+def list_sections(db: DbSession, include_deleted: bool = False) -> list[SectionOut]:
+    query = select(TaskSection).order_by(TaskSection.sort_index)
+    if not include_deleted:
+        query = query.where(TaskSection.deleted_at.is_(None))
+    return [SectionOut.model_validate(row) for row in db.scalars(query)]
 
 
 @router.get("/sessions")

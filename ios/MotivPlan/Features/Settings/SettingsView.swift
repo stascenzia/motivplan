@@ -2,7 +2,7 @@ import CoreModels
 import SwiftUI
 import TimelineEngine
 
-/// Réglages : heure de départ du jour, durées par catégorie.
+/// Réglages : heure de départ du jour.
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var settings = AppSettings.load()
@@ -19,15 +19,9 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    ForEach(TaskCategory.allCases, id: \.self) { category in
-                        Stepper(value: duration(category), in: Durations.minimum...480, step: 5) {
-                            LabeledContent(category.label, value: TimeText.duration(duration(category).wrappedValue))
-                        }
-                    }
-                } header: {
-                    Text("Durées par défaut")
-                } footer: {
-                    Text("Utilisées quand tu déposes une tâche qui n'a pas encore de durée. Sans catégorie : \(TimeText.duration(Durations.fallback)).")
+                    Text("Les durées suggérées se règlent dans chaque section, depuis la boîte de réception.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("Réglages")
@@ -39,12 +33,5 @@ struct SettingsView: View {
             }
             .onChange(of: settings) { _, value in value.save() }
         }
-    }
-
-    private func duration(_ category: TaskCategory) -> Binding<Minutes> {
-        Binding(
-            get: { settings.durations[category] ?? Durations.fallback },
-            set: { settings.durations[category] = $0 }
-        )
     }
 }

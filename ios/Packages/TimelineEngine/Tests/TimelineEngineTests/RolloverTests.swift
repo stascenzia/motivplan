@@ -72,20 +72,16 @@ struct RolloverTests {
 @Suite("Durées par défaut")
 struct DurationTests {
     @Test func existingDurationWins() {
-        #expect(Durations.defaultDuration(existing: 50, category: .pro) == 50)
+        #expect(Durations.defaultDuration(existing: 50, suggested: 15) == 50)
     }
 
-    @Test func categoryThenFallback() {
-        #expect(Durations.defaultDuration(existing: nil, category: .longue) == 90)
-        #expect(Durations.defaultDuration(existing: nil, category: nil) == 30)
+    @Test func suggestionThenFallback() {
+        #expect(Durations.defaultDuration(existing: nil, suggested: 90) == 90)
+        #expect(Durations.defaultDuration(existing: nil, suggested: nil) == 30)
     }
 
     @Test func neverBelowMinimum() {
-        #expect(Durations.defaultDuration(existing: 2, category: nil) == 5)
-    }
-
-    @Test func customSettings() {
-        #expect(Durations.defaultDuration(existing: nil, category: .courte, defaults: [.courte: 20]) == 20)
-        #expect(Durations.defaultDuration(existing: nil, category: .moyenne, defaults: [:]) == 30)
+        #expect(Durations.defaultDuration(existing: 2, suggested: nil) == 5)
+        #expect(Durations.defaultDuration(existing: nil, suggested: 1) == 5)
     }
 }

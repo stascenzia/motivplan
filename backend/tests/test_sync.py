@@ -2,7 +2,7 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
-from tests.conftest import AUTH, later, session_record, task
+from tests.conftest import AUTH, later, section, session_record, task
 
 
 def sync(client: TestClient, **body: Any) -> dict[str, Any]:
@@ -126,7 +126,7 @@ def test_naive_timestamps_are_refused(client: TestClient) -> None:
 
 
 def test_unknown_enum_value_is_refused(client: TestClient) -> None:
-    response = client.post("/sync", json={"tasks": [task(category="urgente")]}, headers=AUTH)
+    response = client.post("/sync", json={"tasks": [task(tag="prioritaire")]}, headers=AUTH)
     assert response.status_code == 422
 
 
@@ -135,3 +135,39 @@ def test_timestamps_round_trip_in_utc(client: TestClient) -> None:
     sync(client, tasks=[record])
     stored = client.get("/tasks", headers=AUTH).json()[0]
     assert stored["updated_at"].startswith("2026-10-12T08:00:00")
+
+
+def test_sections_sync_with_last_write_wins(client: TestClient) -> None:
+    films = section()
+    sync(client, sections=[films])
+    assert ids(client.get("/sections", headers=AUTH).json()) == [films["id"]]
+
+    renamed = section(id=films["id"], name="Cinema", updated_at=later(5))
+    stale = section(id=films["id"], name="Ancien nom", updated_at=later(1))
+    body = sync(client, sections=[renamed])
+    assert body["sections"] == []
+    body = sync(client, sections=[stale])
+    assert [record["name"] for record in body["sections"]] == ["Cinema"]
+
+
+def test_task_carries_section_tag_and_review(client: TestClient) -> None:
+    films = section()
+    film = task(
+        title="Past Lives",
+        section_id=films["id"],
+        tag="detente",
+        status="done",
+        completed_at=later(10),
+        review="aime",
+        review_note="Tres beau",
+    )
+    sync(client, sections=[films], tasks=[film])
+    stored = client.get("/tasks", headers=AUTH).json()[0]
+    assert stored["section_id"] == films["id"]
+    assert stored["review"] == "aime"
+    assert stored["review_note"] == "Tres beau"
+
+
+def test_unknown_repeat_rule_is_refused(client: TestClient) -> None:
+    response = client.post("/sync", json={"sections": [section(repeat="weekly")]}, headers=AUTH)
+    assert response.status_code == 422

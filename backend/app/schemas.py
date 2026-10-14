@@ -4,8 +4,9 @@ from typing import Literal, Self
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
-Category = Literal["quotidienne", "courte", "moyenne", "longue", "pro"]
-Importance = Literal["basse", "normale", "haute"]
+Tag = Literal["urgent", "travail", "medium", "detente"]
+Review = Literal["aime", "bof", "pas_aime"]
+Repeat = Literal["none", "daily", "permanent"]
 Status = Literal["inbox", "scheduled", "done", "archived"]
 Source = Literal["manual", "siri", "widget"]
 
@@ -22,8 +23,8 @@ class SyncedRecord(BaseModel):
 class TaskIn(SyncedRecord):
     title: str = Field(min_length=1)
     notes: str | None = None
-    category: Category | None = None
-    importance: Importance | None = None
+    section_id: uuid.UUID | None = None
+    tag: Tag | None = None
     due_date: date | None = None
     duration_min: int | None = Field(default=None, ge=5)
     status: Status
@@ -34,6 +35,8 @@ class TaskIn(SyncedRecord):
     completed_at: AwareDatetime | None = None
     postpone_count: int = Field(default=0, ge=0)
     source: Source
+    review: Review | None = None
+    review_note: str | None = None
 
     @model_validator(mode="after")
     def anchor_needs_time(self) -> Self:
@@ -43,6 +46,20 @@ class TaskIn(SyncedRecord):
 
 
 class TaskOut(TaskIn):
+    server_updated_at: AwareDatetime
+
+
+class SectionIn(SyncedRecord):
+    name: str = Field(min_length=1)
+    symbol: str = Field(min_length=1, max_length=64)
+    sort_index: int
+    default_duration: int | None = Field(default=None, ge=5)
+    is_plannable: bool = True
+    keeps_memory: bool = False
+    repeat: Repeat = "none"
+
+
+class SectionOut(SectionIn):
     server_updated_at: AwareDatetime
 
 
@@ -62,12 +79,14 @@ class SyncRequest(BaseModel):
     # Valeur `server_time` de la réponse précédente ; absente au premier appel.
     since: AwareDatetime | None = None
     tasks: list[TaskIn] = []
+    sections: list[SectionIn] = []
     sessions: list[SessionIn] = []
 
 
 class SyncResponse(BaseModel):
     server_time: AwareDatetime
     tasks: list[TaskOut]
+    sections: list[SectionOut]
     sessions: list[SessionOut]
 
 

@@ -11,7 +11,7 @@ final class ScreenshotTests: XCTestCase {
     func testDayScreens() throws {
         let app = launch()
 
-        XCTAssertTrue(element(app, "Préparer la présentation").waitForExistence(timeout: 10))
+        XCTAssertTrue(element(app, "Finir le rapport trimestriel").waitForExistence(timeout: 10))
         snapshot(app, "01-jour")
 
         app.buttons["drawer-handle"].tap()
@@ -60,6 +60,35 @@ final class ScreenshotTests: XCTestCase {
         field.typeText("Racheter du café\n")
         XCTAssertTrue(element(app, "Racheter du café").waitForExistence(timeout: 5))
         snapshot(app, "16-apres-capture")
+    }
+
+    /// Sections et seconde mémoire (ADR-014).
+    @MainActor
+    func testSectionScreens() throws {
+        let app = launch()
+        app.tabBars.buttons["Boîte"].tap()
+
+        let films = element(app, "Films et séries")
+        XCTAssertTrue(films.waitForExistence(timeout: 10))
+        app.swipeUp()
+        snapshot(app, "31-sections")
+        films.tap()
+        XCTAssertTrue(element(app, "The Bear").waitForExistence(timeout: 5))
+        snapshot(app, "32-section-a-voir")
+
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Mémoire")).firstMatch.tap()
+        XCTAssertTrue(element(app, "Past Lives").waitForExistence(timeout: 5))
+        snapshot(app, "33-section-memoire")
+
+        app.buttons["Modifier"].tap()
+        XCTAssertTrue(app.navigationBars["Section"].waitForExistence(timeout: 5))
+        snapshot(app, "34-editeur-section")
+        app.buttons["Annuler"].tap()
+
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        element(app, "Récurrentes").tap()
+        XCTAssertTrue(element(app, "Faire une lessive").waitForExistence(timeout: 5))
+        snapshot(app, "35-section-recurrentes")
     }
 
     /// Le widget ouvre `motivplan://capture` : boîte de réception, clavier levé, source « widget ».

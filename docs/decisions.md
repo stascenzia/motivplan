@@ -147,6 +147,25 @@ Une entrée par décision structurante. Format court : contexte, décision, cons
 
 ---
 
+## ADR-014 — Sections, étiquettes et seconde mémoire
+
+**Date** : 2026-10-14 · **Statut** : figée
+
+**Contexte** : MotivPlan est aussi une seconde mémoire, pas seulement un planning. La boîte de réception doit se ranger en sections (quotidiennes, récurrentes, ponctuelles, courses, recettes, films et séries…) avec chacune ses règles : certaines se planifient, d'autres non (une série se regarde au fil des jours) ; certaines gardent la trace de ce qui a été fait, avec un avis. Les catégories du cahier (quotidienne, courte, moyenne, longue, pro) ne servaient qu'à suggérer une durée. Rien n'est encore installé : le schéma v1 se modifie sans migration.
+
+**Décision** :
+- **Sections personnalisables** (entité synchronisée) : nom, symbole, ordre, durée par défaut, et trois règles : `planifiable` (visible dans le tiroir, posable dans la journée), `mémoire` (une tâche terminée reste consultable avec son avis), `répétition` parmi `aucune`, `quotidienne`, `permanente`. Sections fournies au premier lancement : Quotidiennes (quotidienne, planifiable, 15 min), Récurrentes (permanente, planifiable, 30 min), Ponctuelles (aucune, planifiable, 30 min), Courses (non planifiable), Recettes (mémoire, non planifiable), Films et séries (mémoire, non planifiable). Toutes modifiables.
+- Une capture (Siri, widget, champ) arrive **sans section**, dans « À trier ».
+- **Étiquette** unique et facultative, qui remplace l'importance : Urgent, Travail, Medium, Détente (ordre de tri dans cet ordre).
+- **Quotidienne** : posée seule chaque jour au report du matin (ADR-007), cochée ou non la veille, à sa place habituelle ; jamais comptée comme reportée.
+- **Permanente** : cocher ne la consomme pas. Cochée depuis la boîte, elle y reste avec la date de la dernière fois ; cochée dans la journée, elle revient dans la boîte au report suivant.
+- **Mémoire** : terminer demande un avis rapide (aimé, bof, pas aimé) et un commentaire facultatif ; l'élément quitte la liste « à faire » et rejoint la mémoire de la section, datée.
+- Les catégories disparaissent ; la durée suggérée au dépôt vient de la tâche, sinon de sa section, sinon 30 min.
+
+**Conséquences** : la récurrence, prévue en v2, entre en v1 sous ces deux formes simples ; les récurrences à jours fixes restent en v2. Backend : table `sections`, colonnes `section_id`, `tag`, `review`, `review_note` sur `tasks`, sections dans `POST /sync`. Le moteur de timeline ne change pas, hormis `Durations` qui ne connaît plus les catégories.
+
+---
+
 ## Journal du spike Siri hors-ligne (lot 0)
 
 À remplir après le test sur appareil : modèle d'iPhone, version d'iOS, résultat verrouillé, résultat mode avion (phrase puis dictée), titres français qui ont été filtrés par Siri.

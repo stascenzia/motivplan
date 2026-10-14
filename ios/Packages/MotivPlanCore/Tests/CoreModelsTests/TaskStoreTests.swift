@@ -35,11 +35,11 @@ struct TaskStoreTests {
         #expect(throws: TaskStore.StoreError.emptyTitle) { try store.capture("   ", source: .manual) }
     }
 
-    @Test("Planifier pose la tâche en fin de jour avec la durée de sa catégorie")
-    func scheduleUsesCategoryDuration() throws {
+    @Test("Planifier pose la tâche en fin de jour avec la durée de sa section")
+    func scheduleUsesSectionDuration() throws {
         let first = try store.capture("Courrier", source: .manual)
         let second = try store.capture("Rapport", source: .manual)
-        try store.setCategory(.longue, of: second)
+        try store.setSection(try store.createSection(name: "Longues", defaultDuration: 90), of: second)
 
         try store.schedule(first, on: store.today)
         try store.schedule(second, on: store.today)
@@ -226,12 +226,105 @@ struct TaskStoreTests {
         #expect(try displayed() == ["Faite", "En retard"])
     }
 
+    // MARK: Sections et mémoire (ADR-014)
+
+    @Test("Les sections fournies sont créées une seule fois")
+    func defaultSections() throws {
+        let defaults = volatileDefaults()
+        try store.ensureDefaultSections(defaults: defaults)
+        try store.ensureDefaultSections(defaults: defaults)
+        #expect(try store.sections().map(\.name) == SectionPreset.all.map(\.name))
+    }
+
+    @Test("Une quotidienne est posée aujourd'hui, puis chaque matin même cochée")
+    func dailyTask() throws {
+        let daily = try store.createSection(name: "Quotidiennes", defaultDuration: 15, repeatRule: .daily)
+        let bed = try store.capture("Faire le lit", source: .manual)
+        try store.setSection(daily, of: bed)
+        #expect(bed.scheduledDate == store.today)
+        #expect(bed.durationMin == 15)
+
+        // La veille, cochée : le lendemain elle revient non cochée, sans compter de report.
+        bed.scheduledDate = "2026-10-12"
+        try store.toggleDone(bed)
+        try store.rollover(defaults: volatileDefaults())
+        #expect(bed.scheduledDate == store.today)
+        #expect(bed.status == .scheduled)
+        #expect(bed.postponeCount == 0)
+    }
+
+    @Test("Une permanente cochée depuis la boîte y reste, datée")
+    func permanentFromInbox() throws {
+        let recurring = try store.createSection(name: "Récurrentes", repeatRule: .permanent)
+        let laundry = try store.capture("Lessive", source: .manual)
+        try store.setSection(recurring, of: laundry)
+        try store.toggleDone(laundry)
+        #expect(laundry.status == .inbox)
+        #expect(laundry.completedAt != nil)
+        #expect(try store.tasks(in: recurring).map(\.id) == [laundry.id])
+    }
+
+    @Test("Une permanente cochée dans la journée revient en boîte au report")
+    func permanentFromDay() throws {
+        let recurring = try store.createSection(name: "Récurrentes", repeatRule: .permanent)
+        let trash = try store.capture("Poubelles", source: .manual)
+        try store.setSection(recurring, of: trash)
+        try store.schedule(trash, on: "2026-10-12")
+        try store.toggleDone(trash)
+        try store.rollover(defaults: volatileDefaults())
+        #expect(trash.status == .inbox)
+        #expect(trash.scheduledDate == nil)
+        #expect(trash.completedAt != nil)
+    }
+
+    @Test("Terminer un film le range en mémoire avec son avis")
+    func memory() throws {
+        let films = try store.createSection(name: "Films", isPlannable: false, keepsMemory: true)
+        let film = try store.capture("Dune", source: .manual)
+        try store.setSection(films, of: film)
+        try store.complete(film, review: .aime, note: "  Superbe image  ")
+        #expect(try store.tasks(in: films).isEmpty)
+        #expect(try store.memory(of: films).map(\.id) == [film.id])
+        #expect(film.review == .aime)
+        #expect(film.reviewNote == "Superbe image")
+    }
+
+    @Test("Une section non planifiable retire la tâche de la journée")
+    func unplannableSection() throws {
+        let series = try store.createSection(name: "Séries", isPlannable: false)
+        let task = try store.capture("The Bear", source: .manual)
+        try store.schedule(task, on: store.today)
+        try store.setSection(series, of: task)
+        #expect(task.scheduledDate == nil)
+        #expect(task.status == .inbox)
+    }
+
+    @Test("Supprimer une section renvoie ses tâches dans « À trier »")
+    func deleteSection() throws {
+        let section = try store.createSection(name: "Bricolage")
+        let task = try store.capture("Fixer l'étagère", source: .manual)
+        try store.setSection(section, of: task)
+        try store.deleteSection(section)
+        #expect(task.sectionId == nil)
+        #expect(try store.sections().isEmpty)
+        #expect(try store.tasks(in: nil).map(\.id) == [task.id])
+    }
+
+    @Test("Réordonner les sections")
+    func moveSection() throws {
+        let a = try store.createSection(name: "A")
+        _ = try store.createSection(name: "B")
+        _ = try store.createSection(name: "C")
+        try store.moveSection(a, to: 2)
+        #expect(try store.sections().map(\.name) == ["B", "C", "A"])
+    }
+
     @Test("Une édition sans changement ne touche pas updatedAt")
     func noOpEdit() throws {
         let task = try store.capture("Lire", source: .manual)
         task.needsSync = false
         try store.setTitle("Lire", of: task)
-        try store.setCategory(nil, of: task)
+        try store.setTag(nil, of: task)
         #expect(!task.needsSync)
     }
 }

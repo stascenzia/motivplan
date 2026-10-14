@@ -7,7 +7,7 @@ import TimelineEngine
 /// les prédicats SwiftData sur des enums sont fragiles, les chaînes passent partout.
 public enum SchemaV1: VersionedSchema {
     public static var versionIdentifier: Schema.Version { Schema.Version(1, 0, 0) }
-    public static var models: [any PersistentModel.Type] { [TaskItem.self, WorkSession.self] }
+    public static var models: [any PersistentModel.Type] { [TaskItem.self, TaskSection.self, WorkSession.self] }
 
     /// Tâche (`Task` du cahier ; renommée pour éviter la collision avec Swift Concurrency).
     /// Ne s'écrit que par `TaskStore`.
@@ -21,8 +21,9 @@ public enum SchemaV1: VersionedSchema {
 
         public var title: String
         public var notes: String?
-        public var categoryRaw: String?
-        public var importanceRaw: String?
+        /// `nil` : « À trier » (capture sans section).
+        public var sectionId: UUID?
+        public var tagRaw: String?
         /// Clé-jour `yyyy-MM-dd`.
         public var dueDate: String?
         public var durationMin: Int?
@@ -36,6 +37,9 @@ public enum SchemaV1: VersionedSchema {
         public var completedAt: Date?
         public var postponeCount: Int
         public var sourceRaw: String
+        /// Avis d'un élément de mémoire (section `keepsMemory`).
+        public var reviewRaw: String?
+        public var reviewNote: String?
 
         public init(id: UUID = UUID(), title: String, source: TaskSource, now: Date) {
             self.id = id
@@ -45,8 +49,8 @@ public enum SchemaV1: VersionedSchema {
             self.needsSync = true
             self.title = title
             self.notes = nil
-            self.categoryRaw = nil
-            self.importanceRaw = nil
+            self.sectionId = nil
+            self.tagRaw = nil
             self.dueDate = nil
             self.durationMin = nil
             self.statusRaw = TaskStatus.inbox.rawValue
@@ -57,6 +61,47 @@ public enum SchemaV1: VersionedSchema {
             self.completedAt = nil
             self.postponeCount = 0
             self.sourceRaw = source.rawValue
+            self.reviewRaw = nil
+            self.reviewNote = nil
+        }
+    }
+
+    /// Section de la boîte de réception, avec ses règles (ADR-014).
+    @Model
+    public final class TaskSection {
+        @Attribute(.unique) public var id: UUID
+        public var createdAt: Date
+        public var updatedAt: Date
+        public var deletedAt: Date?
+        public var needsSync: Bool
+
+        public var name: String
+        /// Nom d'un symbole SF Symbols.
+        public var symbol: String
+        public var sortIndex: Int
+        /// Durée suggérée au dépôt dans la journée.
+        public var defaultDuration: Int?
+        /// Visible dans le tiroir et posable dans la journée.
+        public var isPlannable: Bool
+        /// Une tâche terminée reste consultable, avec son avis.
+        public var keepsMemory: Bool
+        public var repeatRaw: String
+
+        public init(id: UUID = UUID(), name: String, symbol: String, sortIndex: Int,
+                    defaultDuration: Int?, isPlannable: Bool, keepsMemory: Bool,
+                    repeatRule: SectionRepeat, now: Date) {
+            self.id = id
+            self.createdAt = now
+            self.updatedAt = now
+            self.deletedAt = nil
+            self.needsSync = true
+            self.name = name
+            self.symbol = symbol
+            self.sortIndex = sortIndex
+            self.defaultDuration = defaultDuration
+            self.isPlannable = isPlannable
+            self.keepsMemory = keepsMemory
+            self.repeatRaw = repeatRule.rawValue
         }
     }
 
@@ -98,18 +143,31 @@ public enum MotivPlanMigrationPlan: SchemaMigrationPlan {
 
 public typealias TaskItem = SchemaV1.TaskItem
 public typealias WorkSession = SchemaV1.WorkSession
+public typealias TaskSection = SchemaV1.TaskSection
+
+extension TaskSection {
+    public var repeatRule: SectionRepeat {
+        SectionRepeat(rawValue: repeatRaw) ?? .none
+    }
+
+    /// Sections non supprimées, dans l'ordre choisi. Pour `@Query`.
+    public static var orderedDescriptor: FetchDescriptor<TaskSection> {
+        FetchDescriptor(predicate: #Predicate { $0.deletedAt == nil },
+                        sortBy: [SortDescriptor(\.sortIndex)])
+    }
+}
 
 extension TaskItem {
     public var status: TaskStatus {
         TaskStatus(rawValue: statusRaw) ?? .inbox
     }
 
-    public var category: TaskCategory? {
-        categoryRaw.flatMap(TaskCategory.init(rawValue:))
+    public var tag: TaskTag? {
+        tagRaw.flatMap(TaskTag.init(rawValue:))
     }
 
-    public var importance: Importance? {
-        importanceRaw.flatMap(Importance.init(rawValue:))
+    public var review: Review? {
+        reviewRaw.flatMap(Review.init(rawValue:))
     }
 
     public var source: TaskSource {

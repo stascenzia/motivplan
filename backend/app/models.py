@@ -27,8 +27,9 @@ class Task(SyncedMixin, Base):
 
     title: Mapped[str] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
-    category: Mapped[str | None] = mapped_column(String(16))
-    importance: Mapped[str | None] = mapped_column(String(16))
+    # Pas de clé étrangère : une tâche peut arriver avant sa section (ADR-014).
+    section_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=True)
+    tag: Mapped[str | None] = mapped_column(String(16))
     due_date: Mapped[date | None] = mapped_column(Date)
     duration_min: Mapped[int | None] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(16))
@@ -39,6 +40,22 @@ class Task(SyncedMixin, Base):
     completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     postpone_count: Mapped[int] = mapped_column(Integer, default=0)
     source: Mapped[str] = mapped_column(String(16))
+    review: Mapped[str | None] = mapped_column(String(16))
+    review_note: Mapped[str | None] = mapped_column(Text)
+
+
+class TaskSection(SyncedMixin, Base):
+    """Section de la boîte de réception et ses règles (ADR-014)."""
+
+    __tablename__ = "sections"
+
+    name: Mapped[str] = mapped_column(Text)
+    symbol: Mapped[str] = mapped_column(String(64))
+    sort_index: Mapped[int] = mapped_column(Integer)
+    default_duration: Mapped[int | None] = mapped_column(Integer)
+    is_plannable: Mapped[bool] = mapped_column(Boolean)
+    keeps_memory: Mapped[bool] = mapped_column(Boolean)
+    repeat: Mapped[str] = mapped_column(String(16))
 
 
 class WorkSession(SyncedMixin, Base):

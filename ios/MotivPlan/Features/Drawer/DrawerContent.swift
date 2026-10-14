@@ -3,13 +3,14 @@ import SwiftData
 import SwiftUI
 import TimelineEngine
 
-/// Contenu du tiroir : la boîte de réception groupée par catégorie, prête à glisser dans la journée.
+/// Contenu du tiroir : la boîte de réception groupée par section planifiable, prête à glisser.
 struct DrawerContent: View {
     let day: DayKey
     let onSelect: (TaskItem) -> Void
 
     @Environment(\.modelContext) private var context
     @Query(TaskItem.inboxDescriptor) private var tasks: [TaskItem]
+    @Query(TaskSection.orderedDescriptor) private var sections: [TaskSection]
     @FocusState private var captureFocused: Bool
     @State private var captureCount = 0
     @State private var addCount = 0
@@ -95,32 +96,28 @@ struct DrawerContent: View {
         }
     }
 
-    /// Groupes par catégorie ; dans chaque groupe, échéance la plus proche puis importance.
+    /// « À trier » puis une section planifiable par groupe ; dans chaque groupe, échéance la plus
+    /// proche puis étiquette (Urgent d'abord). Les sections hors planning n'apparaissent pas (ADR-014).
     private var groups: [(title: String, tasks: [TaskItem])] {
         let sorted = tasks.sorted { a, b in
             switch (a.dueDate, b.dueDate) {
             case let (x?, y?) where x != y: return x < y
             case (.some, nil): return true
             case (nil, .some): return false
-            default: return rank(a.importance) > rank(b.importance)
+            default: return rank(a.tag) < rank(b.tag)
             }
         }
-        var result: [(String, [TaskItem])] = TaskCategory.allCases.compactMap { category in
-            let members = sorted.filter { $0.category == category }
-            return members.isEmpty ? nil : (category.label, members)
+        var result: [(title: String, tasks: [TaskItem])] = []
+        let unsorted = sorted.filter { $0.sectionId == nil }
+        if !unsorted.isEmpty { result.append((title: "À trier", tasks: unsorted)) }
+        for section in sections where section.isPlannable {
+            let members = sorted.filter { $0.sectionId == section.id }
+            if !members.isEmpty { result.append((title: section.name, tasks: members)) }
         }
-        let uncategorized = sorted.filter { $0.category == nil }
-        if !uncategorized.isEmpty {
-            result.insert(("Sans catégorie", uncategorized), at: 0)
-        }
-        return result.map { (title: $0.0, tasks: $0.1) }
+        return result
     }
 
-    private func rank(_ importance: Importance?) -> Int {
-        switch importance {
-        case .haute: 3
-        case .normale, nil: 2
-        case .basse: 1
-        }
+    private func rank(_ tag: TaskTag?) -> Int {
+        tag?.rank ?? TaskTag.allCases.count
     }
 }

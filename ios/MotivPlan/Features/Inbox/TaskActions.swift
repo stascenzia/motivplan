@@ -13,20 +13,61 @@ struct DayPickerRequest: Identifiable {
     var title: String { kind == .schedule ? "Planifier le…" : "Échéance" }
 }
 
-/// Gestes rapides sur une tâche (menu contextuel), partagés entre la boîte et le détail.
+/// Section d'une tâche parmi une liste déjà chargée.
+extension Array where Element == TaskSection {
+    func section(of task: TaskItem) -> TaskSection? {
+        guard let id = task.sectionId else { return nil }
+        return first { $0.id == id }
+    }
+}
+
+/// Gestes rapides sur une tâche (menu contextuel), partagés entre la boîte et les sections.
 struct TaskActionsMenu: View {
     let task: TaskItem
     let store: TaskStore
+    let sections: [TaskSection]
     let pickDay: (DayPickerRequest) -> Void
+    /// Terminer : avis pour une section mémoire, simple coche sinon.
+    let finish: (TaskItem) -> Void
     let run: (() throws -> Void) -> Void
 
     var body: some View {
+        let section = sections.section(of: task)
+
+        Button("Terminer", systemImage: "checkmark.circle") { finish(task) }
+
+        if section?.isPlannable ?? true {
+            Menu {
+                Button("Aujourd'hui", systemImage: "sun.max") { run { try store.schedule(task, on: store.today) } }
+                Button("Demain", systemImage: "sunrise") { run { try store.schedule(task, on: store.tomorrow) } }
+                Button("Planifier le…", systemImage: "calendar") { pickDay(DayPickerRequest(kind: .schedule, task: task)) }
+            } label: {
+                Label("Planifier", systemImage: "calendar.badge.plus")
+            }
+        }
+
         Menu {
-            Button("Aujourd'hui", systemImage: "sun.max") { run { try store.schedule(task, on: store.today) } }
-            Button("Demain", systemImage: "sunrise") { run { try store.schedule(task, on: store.tomorrow) } }
-            Button("Planifier le…", systemImage: "calendar") { pickDay(DayPickerRequest(kind: .schedule, task: task)) }
+            Picker("Section", selection: Binding(
+                get: { task.sectionId },
+                set: { id in run { try store.setSection(sections.first { $0.id == id }, of: task) } }
+            )) {
+                Text("À trier").tag(UUID?.none)
+                ForEach(sections) { Label($0.name, systemImage: $0.symbol).tag(Optional($0.id)) }
+            }
         } label: {
-            Label("Planifier", systemImage: "calendar.badge.plus")
+            Label("Ranger dans…", systemImage: "folder")
+        }
+
+        Menu {
+            Picker("Étiquette", selection: Binding(
+                get: { task.tag },
+                set: { value in run { try store.setTag(value, of: task) } }
+            )) {
+                Text("Aucune").tag(TaskTag?.none)
+                ForEach(TaskTag.allCases, id: \.self) { Label($0.label, systemImage: $0.symbol).tag(Optional($0)) }
+            }
+        } label: {
+            Label("Étiquette", systemImage: "tag")
         }
 
         Menu {
@@ -39,30 +80,6 @@ struct TaskActionsMenu: View {
             }
         } label: {
             Label("Échéance", systemImage: "flag")
-        }
-
-        Menu {
-            Picker("Catégorie", selection: Binding(
-                get: { task.category },
-                set: { value in run { try store.setCategory(value, of: task) } }
-            )) {
-                Text("Aucune").tag(TaskCategory?.none)
-                ForEach(TaskCategory.allCases, id: \.self) { Text($0.label).tag(Optional($0)) }
-            }
-        } label: {
-            Label("Catégorie", systemImage: "tag")
-        }
-
-        Menu {
-            Picker("Importance", selection: Binding(
-                get: { task.importance },
-                set: { value in run { try store.setImportance(value, of: task) } }
-            )) {
-                Text("Non précisée").tag(Importance?.none)
-                ForEach(Importance.allCases, id: \.self) { Text($0.label).tag(Optional($0)) }
-            }
-        } label: {
-            Label("Importance", systemImage: "exclamationmark.circle")
         }
 
         Divider()

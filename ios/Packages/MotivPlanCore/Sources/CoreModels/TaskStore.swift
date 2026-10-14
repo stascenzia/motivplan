@@ -15,7 +15,7 @@ public struct TaskStore {
     public let context: ModelContext
     public var settings: AppSettings
     private let calendar: Calendar
-    private let now: () -> Date
+    let now: () -> Date
 
     public init(context: ModelContext, settings: AppSettings = .load(),
                 calendar: Calendar = .current, now: @escaping () -> Date = Date.init) {
@@ -58,16 +58,26 @@ public struct TaskStore {
         try commit(task)
     }
 
-    public func setCategory(_ category: TaskCategory?, of task: TaskItem) throws {
-        guard category?.rawValue != task.categoryRaw else { return }
-        task.categoryRaw = category?.rawValue
+    public func setTag(_ tag: TaskTag?, of task: TaskItem) throws {
+        guard tag?.rawValue != task.tagRaw else { return }
+        task.tagRaw = tag?.rawValue
         try commit(task)
     }
 
-    public func setImportance(_ importance: Importance?, of task: TaskItem) throws {
-        guard importance?.rawValue != task.importanceRaw else { return }
-        task.importanceRaw = importance?.rawValue
-        try commit(task)
+    /// Range la tâche dans une section (`nil` : « À trier »). Une quotidienne est posée aujourd'hui
+    /// tout de suite ; une section non planifiable retire la tâche de la journée.
+    public func setSection(_ section: TaskSection?, of task: TaskItem) throws {
+        guard section?.id != task.sectionId else { return }
+        task.sectionId = section?.id
+        touch(task)
+        if let section {
+            if !section.isPlannable, task.scheduledDate != nil {
+                try unschedule(task)
+            } else if section.repeatRule == .daily, task.scheduledDate == nil, !task.isDone {
+                try schedule(task, on: today)
+            }
+        }
+        try save()
     }
 
     public func setDueDate(_ day: DayKey?, of task: TaskItem) throws {
@@ -76,7 +86,7 @@ public struct TaskStore {
         try commit(task)
     }
 
-    /// Minimum 5 min (cahier). `nil` rend la main à la durée par défaut de la catégorie.
+    /// Minimum 5 min (cahier). `nil` rend la main à la durée par défaut de la section.
     public func setDuration(_ minutes: Minutes?, of task: TaskItem) throws {
         if let minutes, minutes < Durations.minimum { throw StoreError.durationTooShort }
         guard minutes != task.durationMin else { return }
@@ -93,8 +103,8 @@ public struct TaskStore {
     /// Une ancre garde son heure et prend sa place parmi les ancres (ADR-005).
     public func schedule(_ task: TaskItem, on day: DayKey) throws {
         let others = try tasks(on: day).filter { $0.id != task.id }
-        let duration = Durations.defaultDuration(existing: task.durationMin, category: task.category,
-                                                 defaults: settings.durations)
+        let duration = Durations.defaultDuration(existing: task.durationMin,
+                                                 suggested: try section(of: task)?.defaultDuration)
         let anchorStart = task.isAnchored ? task.anchorTime : nil
         let item = TimelineItem(id: task.id, orderIndex: 0, durationMin: duration, anchorStart: anchorStart)
         let changes = Sequencing.append(item, to: others.compactMap(\.timelineItem),
@@ -160,14 +170,30 @@ public struct TaskStore {
     }
 
     /// Cocher ne décale rien : la tâche garde sa place et sa durée (cahier §4.4).
+    /// Une permanente cochée hors journée n'est pas consommée : elle reste en boîte, datée.
+    /// Une tâche de section mémoire passe plutôt par `complete(_:review:note:)`.
     public func toggleDone(_ task: TaskItem) throws {
         if task.isDone {
             task.statusRaw = (task.scheduledDate == nil ? TaskStatus.inbox : TaskStatus.scheduled).rawValue
             task.completedAt = nil
+            task.reviewRaw = nil
+            task.reviewNote = nil
+        } else if task.scheduledDate == nil, try section(of: task)?.repeatRule == .permanent {
+            task.completedAt = now()
         } else {
             task.statusRaw = TaskStatus.done.rawValue
             task.completedAt = now()
         }
+        try commit(task)
+    }
+
+    /// Termine un élément de mémoire avec un avis (ADR-014) : il rejoint la mémoire de sa section.
+    public func complete(_ task: TaskItem, review: Review?, note: String?) throws {
+        let cleaned = note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        task.statusRaw = TaskStatus.done.rawValue
+        task.completedAt = now()
+        task.reviewRaw = review?.rawValue
+        task.reviewNote = (cleaned?.isEmpty ?? true) ? nil : cleaned
         try commit(task)
     }
 
@@ -177,18 +203,46 @@ public struct TaskStore {
 
     /// Report silencieux à la première ouverture du jour (ADR-007) : flottantes non faites des jours
     /// passés à la suite d'aujourd'hui, ancrées ratées en boîte avec leur ancien jour pour échéance.
+    /// Les quotidiennes sont posées sur le jour, les permanentes cochées reviennent en boîte (ADR-014).
     /// Une seule sauvegarde, idempotent.
-    /// - Returns: le nombre de tâches reportées.
+    /// - Returns: le nombre de tâches déplacées.
     @discardableResult
     public func rollover(defaults: UserDefaults = AppGroup.defaults) throws -> Int {
         let today = self.today
         guard defaults.string(forKey: Self.lastRolloverKey) != today else { return 0 }
 
+        let rules = Dictionary(uniqueKeysWithValues: try sections().map { ($0.id, $0) })
+        let all = try context.fetch(FetchDescriptor<TaskItem>(predicate: #Predicate { $0.deletedAt == nil }))
+        let sectionOf = { (task: TaskItem) in task.sectionId.flatMap { rules[$0] } }
+        var touched = 0
+
+        // Quotidiennes : posées aujourd'hui, cochées ou non la veille, à leur place habituelle.
+        for task in all where sectionOf(task)?.repeatRule == .daily
+            && task.status != .archived && task.scheduledDate != today {
+            task.statusRaw = TaskStatus.scheduled.rawValue
+            task.scheduledDate = today
+            task.completedAt = nil
+            if task.orderIndex == nil { task.orderIndex = 0 }
+            if task.durationMin == nil { task.durationMin = sectionOf(task)?.defaultDuration }
+            touch(task)
+            touched += 1
+        }
+        // Permanentes cochées un jour passé : retour en boîte, la date de la dernière fois est gardée.
+        for task in all where sectionOf(task)?.repeatRule == .permanent && task.isDone {
+            guard let day = task.scheduledDate, day < today else { continue }
+            task.statusRaw = TaskStatus.inbox.rawValue
+            task.scheduledDate = nil
+            task.orderIndex = nil
+            task.isAnchored = false
+            task.anchorTime = nil
+            touch(task)
+            touched += 1
+        }
+
         // Jours passés à reporter, plus aujourd'hui (faites comprises) pour poser les reportées à la suite.
-        let descriptor = FetchDescriptor<TaskItem>(
-            predicate: #Predicate { $0.deletedAt == nil && $0.scheduledDate != nil })
-        let candidates = try context.fetch(descriptor).filter { task in
-            guard let day = task.scheduledDate, task.isOnDay else { return false }
+        let candidates = all.filter { task in
+            guard let day = task.scheduledDate, task.isOnDay,
+                  sectionOf(task)?.repeatRule != .daily else { return false }
             return day < today ? task.status == .scheduled : day == today
         }
         let byId = Dictionary(uniqueKeysWithValues: candidates.map { ($0.id, $0) })
@@ -205,13 +259,13 @@ public struct TaskStore {
             task.postponeCount = change.postponeCount
             touch(task)
         }
-        if !moved.isEmpty {
+        if !moved.isEmpty || touched > 0 {
             // Une flottante reportée peut tomber sur une ancre du jour : séquence réalignée.
             try normalizeDay(today)
             try save()
         }
         defaults.set(today, forKey: Self.lastRolloverKey)
-        return moved.count
+        return moved.count + touched
     }
 
     /// Calcul des heures du jour par le moteur.
@@ -271,14 +325,14 @@ public struct TaskStore {
     // MARK: Interne
 
     /// Réaligne la séquence stockée sur la séquence affichée (ADR-005).
-    private func normalizeDay(_ day: DayKey) throws {
+    func normalizeDay(_ day: DayKey) throws {
         let dayTasks = try tasks(on: day)
         let changes = Sequencing.normalize(items: dayTasks.compactMap(\.timelineItem),
                                            dayStart: settings.dayStart)
         apply(changes, to: dayTasks)
     }
 
-    private func apply(_ changes: [UUID: Int], to tasks: [TaskItem]) {
+    func apply(_ changes: [UUID: Int], to tasks: [TaskItem]) {
         for task in tasks {
             guard let index = changes[task.id], index != task.orderIndex else { continue }
             task.orderIndex = index
@@ -286,17 +340,17 @@ public struct TaskStore {
         }
     }
 
-    private func touch(_ task: TaskItem) {
+    func touch(_ task: TaskItem) {
         task.updatedAt = now()
         task.needsSync = true
     }
 
-    private func commit(_ task: TaskItem) throws {
+    func commit(_ task: TaskItem) throws {
         touch(task)
         try save()
     }
 
-    private func save() throws {
+    func save() throws {
         if context.hasChanges {
             try context.save()
         }
