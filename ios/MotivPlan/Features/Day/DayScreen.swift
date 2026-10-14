@@ -9,6 +9,8 @@ struct DayScreen: View {
     @State private var selected: TaskItem?
     @State private var showSettings = false
     @State private var settingsVersion = 0
+    @State private var knownToday = DayKeys.key(for: .now)
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         let today = DayKeys.key(for: .now)
@@ -40,6 +42,15 @@ struct DayScreen: View {
             }
             .sheet(isPresented: $showSettings, onDismiss: { settingsVersion += 1 }) {
                 SettingsView()
+            }
+            // Après minuit, l'app rouverte affiche le nouveau jour si l'on regardait « aujourd'hui ».
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                let now = DayKeys.key(for: .now)
+                if now != knownToday {
+                    if day == knownToday { day = now }
+                    knownToday = now
+                }
             }
         }
     }

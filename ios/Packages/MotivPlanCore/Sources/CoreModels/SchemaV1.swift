@@ -140,6 +140,13 @@ extension TaskItem {
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
     }
 
+    /// Vue moteur pour le report automatique.
+    public var rolloverTask: RolloverTask {
+        RolloverTask(id: id, status: status, scheduledDate: scheduledDate, orderIndex: orderIndex,
+                     anchorStart: isAnchored ? anchorTime : nil, dueDate: dueDate,
+                     postponeCount: postponeCount)
+    }
+
     /// Tâches posées sur un jour (statut filtré ensuite : `isOnDay`), dans l'ordre stocké.
     public static func dayDescriptor(_ day: DayKey) -> FetchDescriptor<TaskItem> {
         let target: String? = day

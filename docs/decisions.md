@@ -135,6 +135,18 @@ Une entrée par décision structurante. Format court : contexte, décision, cons
 
 ---
 
+## ADR-013 — Distribution sans programme développeur payant
+
+**Date** : 2026-10-14 · **Statut** : figée
+
+**Contexte** : le programme Apple Developer coûte 99 €/an ; l'utilisateur ne veut pas le payer pour une seule app personnelle. Aucun Mac n'est disponible en continu (celui de sa compagne est un poste de travail géré). Une PWA avec un Raccourci Siri a été étudiée : capture vocale possible, mais glisser-déposer, tiroir avec clavier et retour haptique nettement moins bons, et interface des lots 2 à 4 à réécrire.
+
+**Décision** : app native conservée, installée avec un compte Apple gratuit par AltStore (renouvellement automatique depuis le PC Windows, allumé la plupart du temps) ou SideStore (renouvellement depuis l'iPhone). La CI GitHub Actions produit l'`.ipa` non signé ; l'outil le signe à l'installation. La configuration est faite plus tard.
+
+**Conséquences** : signature valable 7 jours, renouvelée automatiquement ; limite de 3 apps actives (AltStore, l'app, le widget). Pas de TestFlight ni de notifications push (hors v1 de toute façon). App Intents et widget ne demandent aucun droit payant. Une mise à jour d'iOS peut casser l'outil quelques jours. Le passage au programme payant plus tard ne demande aucun changement de code : renseigner `DEVELOPMENT_TEAM` et signer normalement. Remplace la mention « compte payant recommandé » d'ADR-001 et du plan.
+
+---
+
 ## Journal du spike Siri hors-ligne (lot 0)
 
 À remplir après le test sur appareil : modèle d'iPhone, version d'iOS, résultat verrouillé, résultat mode avion (phrase puis dictée), titres français qui ont été filtrés par Siri.

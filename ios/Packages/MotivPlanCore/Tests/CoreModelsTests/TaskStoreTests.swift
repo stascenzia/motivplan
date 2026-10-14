@@ -174,6 +174,58 @@ struct TaskStoreTests {
         #expect(tasks[0].completedAt == nil)
     }
 
+    private func volatileDefaults() -> UserDefaults {
+        let name = "tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        return defaults
+    }
+
+    @Test("Report : flottantes d'hier à la suite d'aujourd'hui, ancrée ratée en boîte")
+    func rollover() throws {
+        let yesterday = "2026-10-12"
+        let z = try store.capture("Z", source: .manual)
+        try store.schedule(z, on: store.today)
+        let done = try store.capture("Faite hier", source: .manual)
+        try store.schedule(done, on: yesterday)
+        try store.toggleDone(done)
+        let x = try store.capture("X", source: .manual)
+        try store.schedule(x, on: yesterday)
+        let y = try store.capture("Y", source: .manual)
+        try store.schedule(y, on: yesterday)
+        let meeting = try store.capture("Réunion", source: .manual)
+        try store.schedule(meeting, on: yesterday)
+        try store.setAnchor(15 * 60, of: meeting)
+
+        let defaults = volatileDefaults()
+        #expect(try store.rollover(defaults: defaults) == 3)
+
+        #expect(try displayed() == ["Z", "X", "Y"])
+        #expect(x.postponeCount == 1)
+        #expect(y.postponeCount == 1)
+        #expect(done.scheduledDate == yesterday)
+        #expect(meeting.status == .inbox)
+        #expect(!meeting.isAnchored)
+        #expect(meeting.dueDate == yesterday)
+        #expect(meeting.isOverdue(today: store.today))
+
+        // Deuxième ouverture du jour : rien ne bouge.
+        #expect(try store.rollover(defaults: defaults) == 0)
+        #expect(x.postponeCount == 1)
+    }
+
+    @Test("Le report suit une tâche faite aujourd'hui sans la doubler")
+    func rolloverAfterDoneToday() throws {
+        let doneToday = try store.capture("Faite", source: .manual)
+        try store.schedule(doneToday, on: store.today)
+        try store.toggleDone(doneToday)
+        let late = try store.capture("En retard", source: .manual)
+        try store.schedule(late, on: "2026-10-10")
+
+        try store.rollover(defaults: volatileDefaults())
+        #expect(try displayed() == ["Faite", "En retard"])
+    }
+
     @Test("Une édition sans changement ne touche pas updatedAt")
     func noOpEdit() throws {
         let task = try store.capture("Lire", source: .manual)

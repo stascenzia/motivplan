@@ -52,6 +52,20 @@ enum SampleData {
             if let first = try store.tasks(on: today).first(where: { $0.title == "Trier les mails" }) {
                 try store.toggleDone(first)
             }
+
+            // Restes d'hier : reportés en silence au lancement (ADR-007).
+            if let yesterday = DayKeys.adding(-1, to: today) {
+                let contract = try store.capture("Relire le contrat", source: .manual)
+                try store.setDuration(30, of: contract)
+                try store.schedule(contract, on: yesterday)
+                let dentist = try store.capture("Rendez-vous dentiste", source: .manual)
+                try store.schedule(dentist, on: yesterday)
+                try store.setAnchor(17 * 60, of: dentist)
+            }
+            // Réglages éphémères : chaque lancement de test refait le report.
+            if let volatile = UserDefaults(suiteName: "ui-testing.\(UUID().uuidString)") {
+                try store.rollover(defaults: volatile)
+            }
         } catch {
             assertionFailure("Données d'exemple : \(error)")
         }

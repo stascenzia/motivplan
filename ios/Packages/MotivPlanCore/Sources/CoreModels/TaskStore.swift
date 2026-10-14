@@ -171,6 +171,49 @@ public struct TaskStore {
         try commit(task)
     }
 
+    // MARK: Report automatique
+
+    public static let lastRolloverKey = "rollover.lastDayKey"
+
+    /// Report silencieux à la première ouverture du jour (ADR-007) : flottantes non faites des jours
+    /// passés à la suite d'aujourd'hui, ancrées ratées en boîte avec leur ancien jour pour échéance.
+    /// Une seule sauvegarde, idempotent.
+    /// - Returns: le nombre de tâches reportées.
+    @discardableResult
+    public func rollover(defaults: UserDefaults = AppGroup.defaults) throws -> Int {
+        let today = self.today
+        guard defaults.string(forKey: Self.lastRolloverKey) != today else { return 0 }
+
+        // Jours passés à reporter, plus aujourd'hui (faites comprises) pour poser les reportées à la suite.
+        let descriptor = FetchDescriptor<TaskItem>(
+            predicate: #Predicate { $0.deletedAt == nil && $0.scheduledDate != nil })
+        let candidates = try context.fetch(descriptor).filter { task in
+            guard let day = task.scheduledDate, task.isOnDay else { return false }
+            return day < today ? task.status == .scheduled : day == today
+        }
+        let byId = Dictionary(uniqueKeysWithValues: candidates.map { ($0.id, $0) })
+        let moved = Rollover.apply(to: candidates.map(\.rolloverTask), today: today)
+
+        for change in moved {
+            guard let task = byId[change.id] else { continue }
+            task.statusRaw = change.status.rawValue
+            task.scheduledDate = change.scheduledDate
+            task.orderIndex = change.orderIndex
+            task.isAnchored = change.anchorStart != nil
+            task.anchorTime = change.anchorStart
+            task.dueDate = change.dueDate
+            task.postponeCount = change.postponeCount
+            touch(task)
+        }
+        if !moved.isEmpty {
+            // Une flottante reportée peut tomber sur une ancre du jour : séquence réalignée.
+            try normalizeDay(today)
+            try save()
+        }
+        defaults.set(today, forKey: Self.lastRolloverKey)
+        return moved.count
+    }
+
     /// Calcul des heures du jour par le moteur.
     public func layout(of dayTasks: [TaskItem]) -> DayLayout {
         TimelineEngine.layoutDay(dayStart: settings.dayStart, items: dayTasks.compactMap(\.timelineItem))
