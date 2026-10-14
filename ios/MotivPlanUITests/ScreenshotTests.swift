@@ -62,6 +62,24 @@ final class ScreenshotTests: XCTestCase {
         snapshot(app, "16-apres-capture")
     }
 
+    /// Vue Semaine (lot 6) : une carte par jour, toucher un jour ouvre sa frise.
+    @MainActor
+    func testWeekScreen() throws {
+        let app = launch()
+        app.tabBars.buttons["Semaine"].tap()
+        XCTAssertTrue(element(app, "Dîner chez Paul").waitForExistence(timeout: 10))
+        snapshot(app, "41-semaine")
+
+        app.buttons["Semaine suivante"].tap()
+        snapshot(app, "42-semaine-suivante")
+        app.buttons["Cette semaine"].tap()
+
+        let today = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "aujourd'hui")).firstMatch
+        XCTAssertTrue(today.waitForExistence(timeout: 5))
+        today.tap()
+        XCTAssertTrue(element(app, "Finir le rapport trimestriel").waitForExistence(timeout: 5))
+    }
+
     /// Sections et seconde mémoire (ADR-014).
     @MainActor
     func testSectionScreens() throws {

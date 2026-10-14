@@ -69,6 +69,18 @@ enum SampleData {
             let curry = try add("Curry de lentilles corail", to: "Recettes")
             try store.complete(curry, review: .aime, note: "Ajouter du citron vert à la fin.")
 
+            // Reste de la semaine, pour la vue Semaine.
+            if let tomorrow = DayKeys.adding(1, to: today), let later = DayKeys.adding(3, to: today) {
+                let bankFile = try add("Préparer le dossier banque", to: "Ponctuelles", tag: .travail)
+                try store.schedule(bankFile, on: tomorrow)
+                let dinner = try add("Dîner chez Paul", to: "Ponctuelles", tag: .detente)
+                try store.setDuration(120, of: dinner)
+                try store.schedule(dinner, on: tomorrow)
+                try store.setAnchor(20 * 60, of: dinner)
+                let garage = try add("Passer au garage", to: "Ponctuelles", tag: .urgent)
+                try store.schedule(garage, on: later)
+            }
+
             // Restes d'hier : reportés en silence au lancement (ADR-007).
             if let yesterday = DayKeys.adding(-1, to: today) {
                 let contract = try add("Relire le contrat", to: "Ponctuelles", tag: .travail)

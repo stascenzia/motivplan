@@ -226,6 +226,42 @@ struct TaskStoreTests {
         #expect(try displayed() == ["Faite", "En retard"])
     }
 
+    // MARK: Vue semaine (lot 6)
+
+    @Test("Changer de jour : fin de séquence, ancre gardée et replacée, jour quitté réaligné")
+    func moveToAnotherDay() throws {
+        let tomorrow = store.tomorrow
+        let other = try store.capture("Courrier", source: .manual)
+        try store.schedule(other, on: tomorrow)
+        let late = try store.capture("Tardive", source: .manual)
+        try store.setDuration(60, of: late)
+        try store.schedule(late, on: tomorrow)
+
+        let today = try day(["A", "B"])
+        try store.setAnchor(9 * 60 + 30, of: today[1])
+        try store.schedule(today[1], on: tomorrow)
+
+        // L'ancre de 09:30 se place parmi les tâches de demain : Courrier 09:00, ancre, puis Tardive.
+        let tomorrowTasks = try store.tasks(on: tomorrow)
+        let byId = Dictionary(uniqueKeysWithValues: tomorrowTasks.map { ($0.id, $0.title) })
+        let sequence = store.layout(of: tomorrowTasks).sequence.compactMap { byId[$0] }
+        #expect(sequence == ["Courrier", "B", "Tardive"])
+        #expect(today[1].isAnchored)
+        #expect(today[1].anchorTime == 9 * 60 + 30)
+        #expect(try displayed() == ["A"])
+    }
+
+    @Test("Semaine : tâches du lundi au dimanche")
+    func weekRange() throws {
+        let monday = try #require(DayKeys.startOfWeek(containing: store.today))
+        let sunday = try #require(DayKeys.endOfWeek(containing: store.today))
+        let inside = try store.capture("Dedans", source: .manual)
+        try store.schedule(inside, on: sunday)
+        let outside = try store.capture("Dehors", source: .manual)
+        try store.schedule(outside, on: try #require(DayKeys.adding(1, to: sunday)))
+        #expect(try store.tasks(from: monday, through: sunday).map(\.id) == [inside.id])
+    }
+
     // MARK: Sections et mémoire (ADR-014)
 
     @Test("Les sections fournies sont créées une seule fois")

@@ -4,7 +4,8 @@ import TimelineEngine
 
 /// Vue Jour : navigation jour par jour, frise, tiroir en bas.
 struct DayScreen: View {
-    @State private var day = DayKeys.key(for: .now)
+    /// Partagé avec la vue Semaine, qui ouvre un jour en le touchant.
+    @Binding var day: DayKey
     @State private var detent: DrawerDetent = .peek
     @State private var selected: TaskItem?
     @State private var showSettings = false

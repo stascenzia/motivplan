@@ -1,21 +1,29 @@
 import CoreModels
 import SwiftUI
 
-/// Onglets : Jour et Boîte de réception. Semaine au lot 6.
+/// Onglets : Jour, Semaine, Boîte de réception.
 struct RootView: View {
     @Binding var captureRequested: Bool
 
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var context
 
-    private enum Tab: Hashable { case day, inbox }
+    private enum Tab: Hashable { case day, week, inbox }
     @State private var tab: Tab = .day
+    @State private var day = DayKeys.key(for: .now)
 
     var body: some View {
         TabView(selection: $tab) {
-            DayScreen()
+            DayScreen(day: $day)
                 .tabItem { Label("Jour", systemImage: "sun.max") }
                 .tag(Tab.day)
+
+            WeekScreen { opened in
+                day = opened
+                tab = .day
+            }
+            .tabItem { Label("Semaine", systemImage: "calendar") }
+            .tag(Tab.week)
 
             NavigationStack {
                 InboxView(captureRequested: $captureRequested)
