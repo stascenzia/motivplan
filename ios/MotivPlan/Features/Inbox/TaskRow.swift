@@ -9,8 +9,16 @@ struct TaskRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(task.title)
-                .foregroundStyle(.primary)
+            HStack(spacing: 6) {
+                Text(task.title)
+                    .foregroundStyle(.primary)
+                if task.source == .siri {
+                    Image(systemName: "waveform")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .accessibilityLabel("Capturée avec Siri")
+                }
+            }
             if hasDetails {
                 HStack(spacing: 8) {
                     if let category = task.category {

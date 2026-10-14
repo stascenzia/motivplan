@@ -15,18 +15,6 @@ struct RootView: View {
 
             NavigationStack {
                 InboxView(captureRequested: $captureRequested)
-                    .toolbar {
-                        #if DEBUG
-                        ToolbarItem(placement: .topBarTrailing) {
-                            NavigationLink {
-                                SpikeView()
-                            } label: {
-                                Image(systemName: "waveform")
-                            }
-                            .accessibilityLabel("Spike Siri")
-                        }
-                        #endif
-                    }
             }
             .tabItem { Label("Boîte", systemImage: "tray") }
             .tag(Tab.inbox)
@@ -35,5 +23,15 @@ struct RootView: View {
         .onChange(of: captureRequested, initial: true) { _, requested in
             if requested { tab = .inbox }
         }
+    }
+}
+
+/// Store illisible : cas rare, avant le premier déverrouillage après un redémarrage.
+struct StoreUnavailableView: View {
+    var body: some View {
+        ContentUnavailableView(
+            "MotivPlan n'est pas encore accessible",
+            systemImage: "lock",
+            description: Text("Déverrouille ton iPhone, puis rouvre l'app. Tes tâches sont intactes."))
     }
 }

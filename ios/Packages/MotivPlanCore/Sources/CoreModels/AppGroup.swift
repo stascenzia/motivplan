@@ -5,6 +5,7 @@ public enum AppGroup {
     public static let identifier = "group.fr.ascenzia.motivplan"
     public static let urlScheme = "motivplan"
     public static let captureURL = URL(string: "motivplan://capture")!
+    public static let captureWidgetKind = "CaptureWidget"
 
     public static var defaults: UserDefaults {
         UserDefaults(suiteName: identifier) ?? .standard

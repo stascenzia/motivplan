@@ -44,7 +44,7 @@ struct CaptureWidgetView: View {
 }
 
 struct CaptureWidget: Widget {
-    let kind = "CaptureWidget"
+    let kind = AppGroup.captureWidgetKind
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: CaptureProvider()) { _ in

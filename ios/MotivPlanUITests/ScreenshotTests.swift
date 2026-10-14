@@ -62,6 +62,21 @@ final class ScreenshotTests: XCTestCase {
         snapshot(app, "16-apres-capture")
     }
 
+    /// Le widget ouvre `motivplan://capture` : boîte de réception, clavier levé, source « widget ».
+    @MainActor
+    func testWidgetDeepLink() throws {
+        let app = launch()
+        XCTAssertTrue(app.tabBars.buttons["Jour"].waitForExistence(timeout: 10))
+        app.open(URL(string: "motivplan://capture")!)
+
+        let field = app.textFields["capture-field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        snapshot(app, "21-capture-depuis-widget")
+        field.typeText("Idée captée par le widget\n")
+        XCTAssertTrue(element(app, "Idée captée par le widget").waitForExistence(timeout: 5))
+    }
+
     @MainActor
     private func launch() -> XCUIApplication {
         let app = XCUIApplication()
