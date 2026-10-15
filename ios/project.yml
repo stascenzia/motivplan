@@ -46,6 +46,13 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
+        # Design (lot 10) : toujours sombre, police Manrope embarquée (licence OFL).
+        UIUserInterfaceStyle: Dark
+        UIAppFonts:
+          - Manrope-Medium.ttf
+          - Manrope-SemiBold.ttf
+          - Manrope-Bold.ttf
+          - Manrope-ExtraBold.ttf
         # Synchro d'arrière-plan (lot 8).
         UIBackgroundModes:
           - fetch

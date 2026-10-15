@@ -13,33 +13,37 @@ struct ReviewSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    HStack(spacing: 10) {
-                        ForEach(Review.allCases, id: \.self) { choice in
-                            Button {
-                                review = review == choice ? nil : choice
-                            } label: {
-                                VStack(spacing: 6) {
-                                    Image(systemName: choice.symbol).font(.title2)
-                                    Text(choice.label).font(.caption)
+                Group {
+                    Section {
+                        HStack(spacing: 10) {
+                            ForEach(Review.allCases, id: \.self) { choice in
+                                Button {
+                                    review = review == choice ? nil : choice
+                                } label: {
+                                    VStack(spacing: 6) {
+                                        Image(systemName: choice.symbol).font(.title2)
+                                        Text(choice.label).font(.caption)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .background(review == choice ? Color.accentColor.opacity(0.18) : Color.clear,
+                                                in: RoundedRectangle(cornerRadius: 12))
                                 }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .background(review == choice ? Color.accentColor.opacity(0.18) : Color.clear,
-                                            in: RoundedRectangle(cornerRadius: 12))
+                                .buttonStyle(.plain)
+                                .accessibilityAddTraits(review == choice ? .isSelected : [])
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityAddTraits(review == choice ? .isSelected : [])
                         }
+                    } header: {
+                        Text(task.title)
                     }
-                } header: {
-                    Text(task.title)
+                    Section("Un mot ?") {
+                        TextField("Ce que tu en as pensé", text: $note, axis: .vertical)
+                            .lineLimit(2...6)
+                    }
                 }
-                Section("Un mot ?") {
-                    TextField("Ce que tu en as pensé", text: $note, axis: .vertical)
-                        .lineLimit(2...6)
-                }
+                .formRow()
             }
+            .themedForm()
             .navigationTitle("C'est fait")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

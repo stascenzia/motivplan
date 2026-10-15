@@ -17,6 +17,10 @@ struct DayPickerSheet: View {
                        displayedComponents: .date)
                 .datePickerStyle(.graphical)
                 .padding()
+                .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.large, style: .continuous))
+                .padding()
+                .frame(maxHeight: .infinity, alignment: .top)
+                .screenBackground()
                 .navigationTitle(title)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

@@ -15,46 +15,50 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    Stepper(value: $settings.dayStart, in: 0...(22 * 60), step: 15) {
-                        LabeledContent("Début de journée", value: TimeText.clock(settings.dayStart))
-                    }
-                } footer: {
-                    Text("La première tâche de la journée commence à cette heure.")
-                }
-
-                Section {
-                    Text("Les durées suggérées se règlent dans chaque section, depuis la boîte de réception.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section {
-                    TextField("api.exemple.fr", text: $serverText)
-                        .textContentType(.URL)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    SecureField("Jeton", text: $token)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    if let sync {
-                        LabeledContent("État", value: statusText(sync))
-                            .foregroundStyle(isFailure(sync) ? Color.gentleWarning : .secondary)
-                        Button("Synchroniser maintenant", systemImage: "arrow.triangle.2.circlepath") {
-                            saveSync()
-                            Task { await sync.syncNow() }
+                Group {
+                    Section {
+                        Stepper(value: $settings.dayStart, in: 0...(22 * 60), step: 15) {
+                            LabeledContent("Début de journée", value: TimeText.clock(settings.dayStart))
                         }
-                        .disabled(sync.status == .syncing)
+                    } footer: {
+                        Text("La première tâche de la journée commence à cette heure.")
                     }
-                } header: {
-                    Text("Synchronisation")
-                } footer: {
-                    Text(invalidURL
-                         ? "Adresse invalide."
-                         : "Facultative. Tes tâches restent sur l'iPhone et fonctionnent hors-ligne ; la synchro les copie sur ton serveur. Le jeton est rangé dans le trousseau de l'iPhone.")
+
+                    Section {
+                        Text("Les durées suggérées se règlent dans chaque section, depuis la boîte de réception.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Section {
+                        TextField("api.exemple.fr", text: $serverText)
+                            .textContentType(.URL)
+                            .keyboardType(.URL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        SecureField("Jeton", text: $token)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        if let sync {
+                            LabeledContent("État", value: statusText(sync))
+                                .foregroundStyle(isFailure(sync) ? Color.gentleWarning : .secondary)
+                            Button("Synchroniser maintenant", systemImage: "arrow.triangle.2.circlepath") {
+                                saveSync()
+                                Task { await sync.syncNow() }
+                            }
+                            .disabled(sync.status == .syncing)
+                        }
+                    } header: {
+                        Text("Synchronisation")
+                    } footer: {
+                        Text(invalidURL
+                             ? "Adresse invalide."
+                             : "Facultative. Tes tâches restent sur l'iPhone et fonctionnent hors-ligne ; la synchro les copie sur ton serveur. Le jeton est rangé dans le trousseau de l'iPhone.")
+                    }
                 }
+                .formRow()
             }
+            .themedForm()
             .navigationTitle("Réglages")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

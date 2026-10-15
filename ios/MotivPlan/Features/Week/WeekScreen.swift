@@ -3,8 +3,9 @@ import SwiftData
 import SwiftUI
 import TimelineEngine
 
-/// Vue Semaine provisoire (lot 6) : une carte par jour, du lundi au dimanche. On glisse une tâche
-/// d'un jour à l'autre ; toucher l'en-tête d'un jour ouvre sa frise. Forme définitive au design.
+/// Calendrier, mode Semaine (maquette « Calendrier — semaine ») : une carte par jour, du lundi
+/// au dimanche, avec les tâches en puces, une barre de charge et le temps prévu. On glisse une
+/// puce d'un jour à l'autre ; toucher un jour ouvre sa frise. Le mode Mois arrive en v2.
 struct WeekScreen: View {
     let openDay: (DayKey) -> Void
 
@@ -21,33 +22,41 @@ struct WeekScreen: View {
     var body: some View {
         let today = store.today
         let days = (0..<7).compactMap { DayKeys.adding($0, to: weekStart) }
+        let tasksByDay = Dictionary(grouping: scheduled.filter(\.isOnDay)) { $0.scheduledDate ?? "" }
+        let layouts = Dictionary(uniqueKeysWithValues: days.map { ($0, store.layout(of: tasksByDay[$0] ?? [])) })
+        let planned = layouts.values.reduce(0) { $0 + Self.total($1) }
         NavigationStack {
             ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(days, id: \.self) { day in
-                        DayCard(day: day, today: today, tasks: scheduled.filter { $0.scheduledDate == day && $0.isOnDay },
-                                store: store, openDay: openDay, moveTo: { task, target in move(task, to: target) },
-                                pickDay: { dayPicker = $0 }, run: run)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 100)
-            }
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItemGroup(placement: .topBarLeading) {
-                    Button("Semaine précédente", systemImage: "chevron.left") { shiftWeek(-1) }
-                    Button("Semaine suivante", systemImage: "chevron.right") { shiftWeek(1) }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    if !days.contains(today) {
-                        Button("Cette semaine") {
-                            withAnimation { weekStart = DayKeys.startOfWeek(containing: today) ?? today }
+                VStack(alignment: .leading, spacing: 0) {
+                    ScreenHeader(title: "Calendrier") {
+                        if !days.contains(today) {
+                            Button("Cette semaine") {
+                                withAnimation { weekStart = DayKeys.startOfWeek(containing: today) ?? today }
+                            }
+                            .buttonStyle(PillButtonStyle(prominent: true))
                         }
                     }
+
+                    weekHeader(planned: planned)
+                        .padding(.leading, 20)
+                        .padding(.trailing, 12)
+                        .padding(.top, 14)
+                        .padding(.bottom, 6)
+
+                    LazyVStack(spacing: 6) {
+                        ForEach(days, id: \.self) { day in
+                            DayCard(day: day, today: today, tasks: tasksByDay[day] ?? [],
+                                    layout: layouts[day] ?? store.layout(of: []),
+                                    store: store, openDay: openDay, moveTo: { task, target in move(task, to: target) },
+                                    pickDay: { dayPicker = $0 }, run: run)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 24)
                 }
             }
+            .screenBackground()
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $dayPicker) { request in
                 DayPickerSheet(title: "Déplacer au…", initial: request.task.scheduledDate ?? today) { day in
                     move(request.task, to: day)
@@ -65,13 +74,38 @@ struct WeekScreen: View {
         }
     }
 
-    /// « 12 – 18 oct. »
+    /// « 12 – 18 octobre », « Semaine 42 · 24 h 30 planifiées », flèches.
+    private func weekHeader(planned: Minutes) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.blockTitle)
+                    .foregroundStyle(Palette.text)
+                Text(subtitle(planned: planned))
+                    .font(.meta)
+                    .foregroundStyle(Palette.textTertiary)
+            }
+            Spacer()
+            RoundIconButton(label: "Semaine précédente", systemImage: "chevron.left", fill: .clear) { shiftWeek(-1) }
+            RoundIconButton(label: "Semaine suivante", systemImage: "chevron.right", fill: .clear) { shiftWeek(1) }
+        }
+    }
+
+    /// « 12 – 18 octobre »
     private var title: String {
         guard let start = DayKeys.date(from: weekStart),
               let endKey = DayKeys.adding(6, to: weekStart), let end = DayKeys.date(from: endKey) else { return "Semaine" }
-        let startText = start.formatted(.dateTime.day())
-        let endText = end.formatted(.dateTime.day().month(.abbreviated))
-        return "\(startText) – \(endText)"
+        return "\(start.formatted(.dateTime.day())) – \(end.formatted(.dateTime.day().month(.wide)))"
+    }
+
+    private func subtitle(planned: Minutes) -> String {
+        let week = DayKeys.date(from: weekStart).map { Calendar(identifier: .iso8601).component(.weekOfYear, from: $0) }
+        let prefix = week.map { "Semaine \($0)" } ?? "Semaine"
+        return planned > 0 ? "\(prefix) · \(TimeText.duration(planned)) planifiées" : prefix
+    }
+
+    static func total(_ layout: DayLayout) -> Minutes {
+        layout.placements.reduce(0) { $0 + $1.end - $1.start }
     }
 
     private func shiftWeek(_ weeks: Int) {
@@ -95,11 +129,13 @@ struct WeekScreen: View {
     }
 }
 
-/// Carte d'un jour : en-tête avec la charge, puis les tâches en puces, dans l'ordre de la journée.
+/// Carte d'un jour : lettre et numéro à gauche, puces des tâches et barre de charge au milieu,
+/// temps prévu à droite.
 private struct DayCard: View {
     let day: DayKey
     let today: DayKey
     let tasks: [TaskItem]
+    let layout: DayLayout
     let store: TaskStore
     let openDay: (DayKey) -> Void
     let moveTo: (TaskItem, DayKey) -> Void
@@ -108,49 +144,77 @@ private struct DayCard: View {
 
     @State private var targeted = false
 
+    /// Une journée « pleine » pour la barre de charge : 8 heures.
+    private static let fullDay: Minutes = 8 * 60
+
     var body: some View {
-        let layout = store.layout(of: tasks)
+        let isToday = day == today
+        let total = WeekScreen.total(layout)
         let byId = Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0) })
-        VStack(alignment: .leading, spacing: 10) {
+        let date = DayKeys.date(from: day) ?? .now
+        HStack(alignment: .center, spacing: 12) {
             Button { openDay(day) } label: {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(heading)
-                        .font(.headline)
-                        .foregroundStyle(day == today ? Color.accentColor : .primary)
-                    Spacer()
-                    Text(load(layout))
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(isLate(layout) ? Color.gentleWarning : .secondary)
-                    Image(systemName: "chevron.forward")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+                VStack(spacing: 0) {
+                    Text(date.formatted(.dateTime.weekday(.abbreviated)).uppercased().replacingOccurrences(of: ".", with: ""))
+                        .font(.manrope(11, .bold, relativeTo: .caption2))
+                        .foregroundStyle(isToday ? Palette.accentSoft : Palette.textTertiary)
+                    Text(date.formatted(.dateTime.day()))
+                        .font(.manrope(20, .extrabold, relativeTo: .title3).monospacedDigit())
+                        .foregroundStyle(Palette.text)
                 }
+                .frame(width: 44, height: 50)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(heading(date: date, isToday: isToday))
             .accessibilityHint("Ouvre la journée")
 
-            if layout.placements.isEmpty {
-                Text(targeted ? "Lâche ici" : "Rien de prévu")
-                    .font(.callout)
-                    .foregroundStyle(.tertiary)
-            } else {
-                FlowLayout(spacing: 6) {
-                    ForEach(layout.placements, id: \.id) { placement in
-                        if let task = byId[placement.id] {
-                            chip(task, placement)
+            VStack(alignment: .leading, spacing: 7) {
+                if layout.placements.isEmpty {
+                    Text(targeted ? "Lâche ici" : "Journée libre")
+                        .font(.meta)
+                        .foregroundStyle(targeted ? Palette.accentSoft : Palette.textFaint)
+                } else {
+                    FlowLayout(spacing: 5) {
+                        ForEach(layout.placements, id: \.id) { placement in
+                            if let task = byId[placement.id] {
+                                chip(task, placement)
+                            }
                         }
                     }
                 }
+                Capsule()
+                    .fill(Palette.control)
+                    .frame(height: 4)
+                    .overlay(alignment: .leading) {
+                        GeometryReader { geometry in
+                            Capsule()
+                                .fill(isToday ? Palette.accent : Color(hex: 0x5C5C7A))
+                                .frame(width: geometry.size.width * min(1, CGFloat(total) / CGFloat(Self.fullDay)))
+                        }
+                    }
+                    .accessibilityHidden(true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 12)
+
+            Text(total > 0 ? TimeText.duration(total) : "—")
+                .font(.meta.monospacedDigit())
+                .foregroundStyle(isLate ? Palette.warning : Palette.textSecondary)
+                .frame(width: 50, alignment: .trailing)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.leading, 10)
+        .padding(.trailing, 14)
+        .frame(minHeight: 70)
+        .background(isToday ? Color(hex: 0x1C1C24) : Palette.surface,
+                    in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(targeted ? Color.accentColor : .clear, lineWidth: 2)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(targeted || isToday ? Palette.accent : Color(hex: 0x1E1E24),
+                              lineWidth: targeted ? 2 : isToday ? 1.5 : 1)
         }
+        .contentShape(Rectangle())
+        .onTapGesture { openDay(day) }
         .dropDestination(for: TaskDragItem.self) { items, _ in
             guard let id = items.first?.id, let task = fetch(id) else { return false }
             moveTo(task, day)
@@ -159,27 +223,31 @@ private struct DayCard: View {
         .animation(.easeInOut(duration: 0.15), value: targeted)
     }
 
+    private var isLate: Bool {
+        (layout.endOfDay ?? 0) > EndOfDayFooter.lateThreshold
+    }
+
     private func chip(_ task: TaskItem, _ placement: Placement) -> some View {
-        HStack(spacing: 5) {
-            if placement.isAnchored {
-                Text(TimeText.clock(placement.start))
-                    .font(.caption2.monospacedDigit().weight(.semibold))
-            }
-            Text(task.title)
-                .font(.caption)
+        HStack(spacing: 6) {
+            Circle()
+                .fill(placement.isAnchored ? Palette.anchor : TagColors.of(task.tag).vivid)
+                .frame(width: 7, height: 7)
+            Text(placement.isAnchored ? "\(task.title) \(TimeText.clock(placement.start))" : task.title)
                 .strikethrough(task.isDone)
                 .lineLimit(1)
         }
-        .foregroundStyle(task.isDone ? .secondary : .primary)
+        .font(.manrope(12, .semibold, relativeTo: .caption))
+        .foregroundStyle(task.isDone ? Palette.textMuted : Palette.textSoft)
         .padding(.horizontal, 9)
-        .padding(.vertical, 5)
-        .background((task.tag?.tint ?? .gray).opacity(0.18), in: Capsule())
+        .frame(minHeight: 24)
+        .background(Palette.control, in: Capsule())
         .draggable(TaskDragItem(id: task.id)) {
             Text(task.title)
-                .font(.caption)
+                .font(.manrope(12, .bold, relativeTo: .caption))
+                .foregroundStyle(Palette.text)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(.regularMaterial, in: Capsule())
+                .background(Palette.control, in: Capsule())
         }
         .contextMenu {
             // Repli garanti si le glisser échoue (ADR-008).
@@ -191,71 +259,14 @@ private struct DayCard: View {
         }
     }
 
-    private var heading: String {
-        guard let date = DayKeys.date(from: day) else { return day }
-        let text = date.formatted(.dateTime.weekday(.wide).day())
-        return day == today ? "\(text) · aujourd'hui" : text.capitalized
-    }
-
-    /// Charge du jour : temps prévu et heure de fin.
-    private func load(_ layout: DayLayout) -> String {
-        guard let end = layout.endOfDay else { return "" }
-        let total = layout.placements.reduce(0) { $0 + $1.end - $1.start }
-        return "\(TimeText.duration(total)) · fin \(TimeText.clock(end))"
-    }
-
-    private func isLate(_ layout: DayLayout) -> Bool {
-        (layout.endOfDay ?? 0) > 22 * 60
+    private func heading(date: Date, isToday: Bool) -> String {
+        let text = date.formatted(.dateTime.weekday(.wide).day().month(.wide))
+        return isToday ? "\(text) · aujourd'hui" : text
     }
 
     private func fetch(_ id: UUID) -> TaskItem? {
         var descriptor = FetchDescriptor<TaskItem>(predicate: #Predicate { $0.id == id })
         descriptor.fetchLimit = 1
         return try? store.context.fetch(descriptor).first
-    }
-}
-
-/// Puces qui passent à la ligne.
-private struct FlowLayout: Layout {
-    var spacing: CGFloat
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let rows = arrange(proposal: proposal, subviews: subviews)
-        let height = rows.last.map { $0.y + $0.height } ?? 0
-        return CGSize(width: proposal.width ?? 0, height: height)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        for row in arrange(proposal: ProposedViewSize(width: bounds.width, height: nil), subviews: subviews) {
-            for item in row.items {
-                subviews[item.index].place(at: CGPoint(x: bounds.minX + item.x, y: bounds.minY + row.y),
-                                           proposal: ProposedViewSize(item.size))
-            }
-        }
-    }
-
-    private struct Row {
-        var y: CGFloat
-        var height: CGFloat = 0
-        var items: [(index: Int, x: CGFloat, size: CGSize)] = []
-    }
-
-    private func arrange(proposal: ProposedViewSize, subviews: Subviews) -> [Row] {
-        let maxWidth = proposal.width ?? .infinity
-        var rows = [Row(y: 0)]
-        var x: CGFloat = 0
-        for index in subviews.indices {
-            let size = subviews[index].sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
-            let width = min(size.width, maxWidth)
-            if x > 0, x + width > maxWidth {
-                let last = rows[rows.count - 1]
-                rows.append(Row(y: last.y + last.height + spacing))
-                x = 0
-            }
-            rows[rows.count - 1].items.append((index, x, CGSize(width: width, height: size.height)))
-            rows[rows.count - 1].height = max(rows[rows.count - 1].height, size.height)
-            x += width + spacing
-        }
-        return rows
     }
 }

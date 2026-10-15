@@ -3,15 +3,17 @@ import SwiftData
 import SwiftUI
 import TimelineEngine
 
-/// Boîte de réception : capture permanente, « À trier », puis une ligne par section (ADR-014).
+/// Boîte de réception (maquette « Boîte de réception ») : capture permanente, une tuile par
+/// section avec son nombre de tâches, puis la liste de la tuile choisie. Toucher une tâche
+/// la déplie et propose les actions rapides (ADR-014).
 struct InboxView: View {
-    @Binding var captureRequested: Bool
-
     @Environment(\.modelContext) private var context
     @Query(TaskItem.inboxDescriptor) private var inbox: [TaskItem]
     @Query(TaskSection.orderedDescriptor) private var sections: [TaskSection]
     @FocusState private var captureFocused: Bool
-    @State private var captureSource: TaskSource = .manual
+    /// Tuile choisie : `nil` pour « À trier ».
+    @State private var selectedSection: UUID?
+    @State private var expanded: UUID?
     @State private var dayPicker: DayPickerRequest?
     @State private var reviewing: TaskItem?
     @State private var editingSection: SectionEditing?
@@ -23,51 +25,60 @@ struct InboxView: View {
 
     var body: some View {
         let today = store.today
-        let unsorted = inbox.filter { $0.sectionId == nil }
-        List {
-            Section {
+        let section = sections.first { $0.id == selectedSection }
+        let items = inbox.filter { $0.sectionId == section?.id }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                ScreenHeader(title: "Boîte de réception", subtitle: "Tout est noté. Trie quand tu veux.")
+
                 CaptureField(focus: $captureFocused) { title in
                     run {
-                        try store.capture(title, source: captureSource)
-                        captureSource = .manual
+                        let task = try store.capture(title, source: .manual)
+                        if let section { try store.setSection(section, of: task) }
                         captureCount += 1
                     }
                 }
-            }
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
 
-            if !unsorted.isEmpty {
-                Section {
-                    ForEach(unsorted) { task in
-                        row(task, today: today)
-                    }
-                } header: {
-                    Text("À trier")
-                } footer: {
-                    Text("Appui long pour ranger dans une section, glisser vers la gauche pour planifier.")
-                }
-            }
+                tiles
+                    .padding(.horizontal, 16)
+                    .padding(.top, 14)
 
-            Section {
-                ForEach(sections) { section in
-                    NavigationLink(value: section) {
-                        SectionRow(section: section, count: inbox.filter { $0.sectionId == section.id }.count)
+                listHeader(section)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 22)
+                    .padding(.bottom, 8)
+
+                LazyVStack(spacing: 6) {
+                    ForEach(items) { task in
+                        row(task, section: section, today: today)
+                    }
+                    if items.isEmpty {
+                        Text(section == nil ? "Rien à trier. Tout est rangé." : "Rien à faire ici pour l'instant.")
+                            .font(.subtitle)
+                            .foregroundStyle(Palette.textTertiary)
+                            .frame(maxWidth: .infinity, minHeight: 56)
+                            .overlay {
+                                RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
+                                    .strokeBorder(Palette.border, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                            }
                     }
                 }
-                .onMove { from, to in
-                    guard let index = from.first else { return }
-                    run { try store.moveSection(sections[index], to: to > index ? to - 1 : to) }
-                }
-                Button("Nouvelle section", systemImage: "plus") { editingSection = SectionEditing(section: nil) }
-            } header: {
-                Text("Sections")
+                .padding(.horizontal, 16)
+                .padding(.bottom, 24)
             }
         }
-        .navigationTitle("Boîte de réception")
+        .scrollDismissesKeyboard(.interactively)
+        .screenBackground()
+        .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(for: TaskItem.self) { task in
             TaskDetailView(task: task)
+                .hidesTabBar()
         }
         .navigationDestination(for: TaskSection.self) { section in
             SectionView(section: section)
+                .hidesTabBar()
         }
         .sheet(item: $dayPicker) { request in
             DayPickerSheet(title: request.title, initial: request.task.dueDate ?? store.today) { day in
@@ -93,40 +104,197 @@ struct InboxView: View {
         }
         .sensoryFeedback(.impact(weight: .light), trigger: captureCount)
         .sensoryFeedback(.success, trigger: scheduleCount)
-        .onChange(of: captureRequested, initial: true) { _, requested in
-            guard requested else { return }
-            captureSource = .widget
-            // Sur iOS 17, le focus au premier rendu peut demander un léger différé (plan, §Capture).
-            Task {
-                try? await Task.sleep(for: .milliseconds(150))
-                captureFocused = true
-                captureRequested = false
-            }
-        }
-        .onChange(of: captureFocused) { _, focused in
-            if !focused { captureSource = .manual }
+        .sensoryFeedback(.selection, trigger: selectedSection)
+        // Une section supprimée ailleurs : retour sur « À trier ».
+        .onChange(of: sections.map(\.id)) { _, ids in
+            if let selectedSection, !ids.contains(selectedSection) { self.selectedSection = nil }
         }
     }
 
-    private func row(_ task: TaskItem, today: DayKey) -> some View {
-        NavigationLink(value: task) {
-            TaskRow(task: task, today: today)
-        }
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            Button("Aujourd'hui", systemImage: "sun.max") { schedule(task, on: store.today) }
-                .tint(.accentColor)
-            Button("Demain", systemImage: "sunrise") { schedule(task, on: store.tomorrow) }
-                .tint(.indigo)
-        }
-        .swipeActions(edge: .leading) {
-            Button("Planifier le…", systemImage: "calendar") {
-                dayPicker = DayPickerRequest(kind: .schedule, task: task)
+    // MARK: Tuiles
+
+    private var tiles: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+            tile(name: "À trier", symbol: "tray", count: inbox.filter { $0.sectionId == nil }.count, id: nil)
+            ForEach(sections) { section in
+                tile(name: section.name, symbol: section.symbol,
+                     count: inbox.filter { $0.sectionId == section.id }.count, id: section.id)
+                    .contextMenu {
+                        Button("Modifier", systemImage: "slider.horizontal.3") {
+                            editingSection = SectionEditing(section: section)
+                        }
+                        if let index = sections.firstIndex(where: { $0.id == section.id }) {
+                            if index > 0 {
+                                Button("Déplacer avant", systemImage: "arrow.left") {
+                                    run { try store.moveSection(section, to: index - 1) }
+                                }
+                            }
+                            if index < sections.count - 1 {
+                                Button("Déplacer après", systemImage: "arrow.right") {
+                                    run { try store.moveSection(section, to: index + 1) }
+                                }
+                            }
+                        }
+                    }
             }
-            .tint(.teal)
+            Button {
+                editingSection = SectionEditing(section: nil)
+            } label: {
+                VStack(spacing: 6) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 18, weight: .bold))
+                    Text("Nouvelle section")
+                        .font(.manrope(12, .bold, relativeTo: .caption))
+                        .multilineTextAlignment(.center)
+                }
+                .foregroundStyle(Palette.textSecondary)
+                .frame(maxWidth: .infinity, minHeight: 84)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .strokeBorder(Palette.border, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                }
+            }
+            .buttonStyle(.plain)
         }
+    }
+
+    private func tile(name: String, symbol: String, count: Int, id: UUID?) -> some View {
+        let selected = selectedSection == id
+        return Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                selectedSection = id
+                expanded = nil
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Image(systemName: symbol)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(selected ? Palette.accent : Palette.textSecondary)
+                        .frame(width: 26, height: 26)
+                        .background(Palette.control, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    Spacer(minLength: 2)
+                    Text("\(count)")
+                        .font(.manrope(20, .extrabold, relativeTo: .title3).monospacedDigit())
+                        .foregroundStyle(count > 0 ? Palette.text : Palette.textFaint)
+                }
+                Spacer(minLength: 6)
+                Text(name)
+                    .font(.manrope(12, .bold, relativeTo: .caption))
+                    .foregroundStyle(Color(hex: 0xC9C9D1))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, minHeight: 84, alignment: .leading)
+            .background(selected ? Palette.field : Palette.surface,
+                        in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(selected ? Palette.accent : Palette.hairline, lineWidth: selected ? 1.5 : 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(name), \(count)")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func listHeader(_ section: TaskSection?) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(section?.name ?? "À trier")
+                .font(.manrope(17, .extrabold, relativeTo: .headline))
+                .foregroundStyle(Palette.text)
+            Spacer()
+            if let section {
+                NavigationLink(value: section) {
+                    HStack(spacing: 4) {
+                        Text(section.keepsMemory ? "Section et mémoire" : "Voir la section")
+                        Image(systemName: "chevron.forward")
+                    }
+                    .font(.manrope(12, .bold, relativeTo: .caption))
+                    .foregroundStyle(Palette.accentSoft)
+                }
+            } else {
+                Text("Touche une tâche pour la ranger")
+                    .font(.meta)
+                    .foregroundStyle(Palette.textTertiary)
+            }
+        }
+    }
+
+    // MARK: Lignes
+
+    private func row(_ task: TaskItem, section: TaskSection?, today: DayKey) -> some View {
+        let open = expanded == task.id
+        return VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.spring(duration: 0.28)) { expanded = open ? nil : task.id }
+            } label: {
+                TaskRow(task: task, today: today)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(open ? "Replie les actions" : "Affiche les actions")
+
+            if open {
+                quickActions(task, section: section)
+                    .padding(.leading, 60)
+                    .padding(.trailing, 14)
+                    .padding(.bottom, 14)
+                    .transition(.opacity)
+            }
+        }
+        .background(open ? Palette.raised : Palette.surface,
+                    in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .contextMenu {
             TaskActionsMenu(task: task, store: store, sections: sections, pickDay: { dayPicker = $0 },
                             finish: finish, run: run)
+        }
+    }
+
+    private func quickActions(_ task: TaskItem, section: TaskSection?) -> some View {
+        FlowLayout(spacing: 6) {
+            if section?.isPlannable ?? true {
+                Button("Aujourd'hui") { schedule(task, on: store.today) }
+                    .buttonStyle(PillButtonStyle(prominent: true))
+                Button("Demain") { schedule(task, on: store.tomorrow) }
+                    .buttonStyle(PillButtonStyle())
+                Button("Planifier le…") { dayPicker = DayPickerRequest(kind: .schedule, task: task) }
+                    .buttonStyle(PillButtonStyle())
+            } else {
+                Button(section?.keepsMemory == true ? "C'est fait…" : "Terminer") { finish(task) }
+                    .buttonStyle(PillButtonStyle(prominent: true))
+            }
+            Menu {
+                Picker("Section", selection: Binding(
+                    get: { task.sectionId },
+                    set: { id in run { try store.setSection(sections.first { $0.id == id }, of: task) } }
+                )) {
+                    Text("À trier").tag(UUID?.none)
+                    ForEach(sections) { Label($0.name, systemImage: $0.symbol).tag(Optional($0.id)) }
+                }
+            } label: {
+                Text("Ranger").pill()
+            }
+            Menu {
+                Button("Aujourd'hui") { run { try store.setDueDate(store.today, of: task) } }
+                Button("Demain") { run { try store.setDueDate(store.tomorrow, of: task) } }
+                Button("Cette semaine") { run { try store.setDueDate(store.endOfThisWeek, of: task) } }
+                Button("Choisir…") { dayPicker = DayPickerRequest(kind: .due, task: task) }
+                if task.dueDate != nil {
+                    Button("Retirer l'échéance", systemImage: "xmark") { run { try store.setDueDate(nil, of: task) } }
+                }
+            } label: {
+                Text("Échéance").pill()
+            }
+            NavigationLink(value: task) {
+                Text("Détail")
+                    .font(.manrope(12, .bold, relativeTo: .footnote))
+                    .foregroundStyle(Palette.textSoft)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 34)
+                    .overlay { Capsule().strokeBorder(Palette.borderStrong, lineWidth: 1) }
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -142,6 +310,7 @@ struct InboxView: View {
         run {
             try store.schedule(task, on: day)
             scheduleCount += 1
+            expanded = nil
         }
     }
 
@@ -158,40 +327,4 @@ struct InboxView: View {
 struct SectionEditing: Identifiable {
     let section: TaskSection?
     var id: String { section.map { "\($0.id)" } ?? "new" }
-}
-
-struct SectionRow: View {
-    let section: TaskSection
-    let count: Int
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: section.symbol)
-                .foregroundStyle(.tint)
-                .frame(width: 26)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(section.name)
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            if count > 0 {
-                Text("\(count)")
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-        }
-    }
-
-    private var subtitle: String {
-        var parts: [String] = []
-        if section.isPlannable {
-            if section.repeatRule != .none { parts.append(section.repeatRule.label) }
-        } else {
-            parts.append("Hors planning")
-        }
-        if section.keepsMemory { parts.append("Mémoire") }
-        return parts.isEmpty ? "Ponctuelle" : parts.joined(separator: " · ")
-    }
 }

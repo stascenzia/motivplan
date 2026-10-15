@@ -3,14 +3,15 @@ import SwiftData
 import SwiftUI
 import TimelineEngine
 
-/// Frise d'un jour : bulles placées par le moteur, réordonnancement par geste maison,
+/// Frise d'un jour : capsules placées par le moteur, réordonnancement par geste maison,
 /// dépôt depuis le tiroir.
 ///
-/// Réordonnancement (ADR-008) : appui long → la bulle se soulève → elle suit le doigt ;
-/// la position visée se calcule sur la géométrie des autres bulles ; la frise montre en direct
+/// Réordonnancement (ADR-008) : appui long → la tâche se soulève → elle suit le doigt ;
+/// la position visée se calcule sur la géométrie des autres lignes ; la frise montre en direct
 /// les heures recalculées et la place réservée ; défilement automatique près des bords.
 struct DayTimeline: View {
     let day: DayKey
+    let isToday: Bool
     @Binding var drawerDetent: DrawerDetent
     let onSelect: (TaskItem) -> Void
 
@@ -36,8 +37,9 @@ struct DayTimeline: View {
         let grabOffset: CGFloat
     }
 
-    init(day: DayKey, drawerDetent: Binding<DrawerDetent>, onSelect: @escaping (TaskItem) -> Void) {
+    init(day: DayKey, isToday: Bool, drawerDetent: Binding<DrawerDetent>, onSelect: @escaping (TaskItem) -> Void) {
         self.day = day
+        self.isToday = isToday
         self._drawerDetent = drawerDetent
         self.onSelect = onSelect
         self._rows = Query(TaskItem.dayDescriptor(day))
@@ -50,42 +52,31 @@ struct DayTimeline: View {
         let byId = Dictionary(uniqueKeysWithValues: dayTasks.map { ($0.id, $0) })
         let layout = previewLayout(of: dayTasks)
 
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(spacing: 0) {
-                    ForEach(layout.placements, id: \.id) { placement in
-                        if placement.gapBefore > 0 {
-                            GapView(minutes: placement.gapBefore)
-                        }
-                        if let task = byId[placement.id] {
-                            row(task, placement, layout: layout, proxy: proxy)
+        VStack(spacing: 0) {
+            if !dayTasks.isEmpty {
+                summary(dayTasks, layout: layout)
+            }
+            TimelineView(.everyMinute) { context in
+                let now = isToday ? Self.minutes(of: context.date) : nil
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        content(layout: layout, byId: byId, now: now, proxy: proxy)
+                    }
+                    .coordinateSpace(name: Self.space)
+                    .scrollDisabled(drag != nil)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewportHeight = $0 }
+                    .overlay(alignment: .top) { floatingBubble(byId: byId, layout: layout) }
+                    .overlay {
+                        if dayTasks.isEmpty {
+                            emptyDay
                         }
                     }
-                    if !layout.placements.isEmpty {
-                        EndOfDayFooter(layout: layout)
+                    .dropDestination(for: TaskDragItem.self) { items, location in
+                        drop(items, at: location.y, layout: layout)
+                    } isTargeted: { targeted in
+                        if targeted { drawerDetent = .peek }
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                // Laisse la fin de journée visible au-dessus du tiroir replié.
-                .padding(.bottom, 160)
-            }
-            .coordinateSpace(name: Self.space)
-            .scrollDisabled(drag != nil)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewportHeight = $0 }
-            .overlay(alignment: .top) { floatingBubble(byId: byId, layout: layout) }
-            .overlay {
-                if dayTasks.isEmpty {
-                    ContentUnavailableView("Journée libre", systemImage: "sun.max",
-                                           description: Text("Glisse une tâche depuis le tiroir."))
-                        .allowsHitTesting(false)
-                        .padding(.bottom, 140)
-                }
-            }
-            .dropDestination(for: TaskDragItem.self) { items, location in
-                drop(items, at: location.y, layout: layout)
-            } isTargeted: { targeted in
-                if targeted { drawerDetent = .peek }
             }
         }
         .sensoryFeedback(.impact(weight: .medium), trigger: liftCount)
@@ -101,27 +92,108 @@ struct DayTimeline: View {
         }
     }
 
+    private func content(layout: DayLayout, byId: [UUID: TaskItem], now: Minutes?,
+                         proxy: ScrollViewProxy) -> some View {
+        let nowIndex = now.map { Self.nowIndex(in: layout, now: $0) }
+        return VStack(spacing: 0) {
+            ForEach(Array(layout.placements.enumerated()), id: \.element.id) { index, placement in
+                if placement.gapBefore > 0 {
+                    GapView(minutes: placement.gapBefore)
+                }
+                if let now, nowIndex == index {
+                    NowLine(minutes: now)
+                }
+                if let task = byId[placement.id] {
+                    row(task, placement, now: now, layout: layout, proxy: proxy)
+                }
+            }
+            if let now, !layout.placements.isEmpty, nowIndex == layout.placements.count {
+                NowLine(minutes: now)
+            }
+            if !layout.placements.isEmpty {
+                EndOfDayFooter(layout: layout)
+            }
+        }
+        // Axe vertical qui relie les capsules.
+        .background(alignment: .topLeading) {
+            if !layout.placements.isEmpty {
+                Rectangle()
+                    .fill(Palette.control)
+                    .frame(width: 2)
+                    .padding(.leading, 44 + 10 + TaskBubble.capsuleWidth / 2 - 1)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 14)
+        // Laisse la fin de journée visible au-dessus du tiroir replié.
+        .padding(.bottom, 100)
+    }
+
+    /// Puces du haut : tâches faites, heure de fin prévue.
+    private func summary(_ dayTasks: [TaskItem], layout: DayLayout) -> some View {
+        let done = dayTasks.filter(\.isDone).count
+        return HStack(spacing: 8) {
+            Chip(text: done == 1 ? "1 faite" : "\(done) faites", systemImage: "checkmark",
+                 tone: done > 0 ? .accent : .neutral, height: 32)
+            if let end = layout.endOfDay {
+                Chip(text: end >= 24 * 60 ? "Fin après minuit" : "Fin vers \(TimeText.clock(end))",
+                     systemImage: "clock", tone: end > EndOfDayFooter.lateThreshold ? .warning : .neutral,
+                     height: 32)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 14)
+    }
+
+    private var emptyDay: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "sun.max")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(Palette.accent)
+            Text("Journée libre")
+                .font(.blockTitle)
+                .foregroundStyle(Palette.text)
+            Text("Glisse une tâche depuis le tiroir.")
+                .font(.subtitle)
+                .foregroundStyle(Palette.textSecondary)
+        }
+        .multilineTextAlignment(.center)
+        .allowsHitTesting(false)
+        .padding(.bottom, 120)
+    }
+
+    /// Minute de la journée (0 à 1439).
+    static func minutes(of date: Date, calendar: Calendar = .current) -> Minutes {
+        let parts = calendar.dateComponents([.hour, .minute], from: date)
+        return (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+    }
+
+    /// La ligne « maintenant » se place avant la première tâche qui n'est pas encore finie.
+    static func nowIndex(in layout: DayLayout, now: Minutes) -> Int {
+        layout.placements.firstIndex { $0.end > now } ?? layout.placements.count
+    }
+
     // MARK: Lignes
 
-    private func row(_ task: TaskItem, _ placement: Placement, layout: DayLayout,
+    private func row(_ task: TaskItem, _ placement: Placement, now: Minutes?, layout: DayLayout,
                      proxy: ScrollViewProxy) -> some View {
         let isDragged = drag?.id == task.id
+        let current = now.map { placement.start <= $0 && $0 < placement.end && !task.isDone } ?? false
+        let strong = placement.isAnchored || current
         return HStack(alignment: .top, spacing: 10) {
             Text(TimeText.clock(placement.start))
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(placement.isAnchored ? .primary : .secondary)
+                .font(.manrope(12, strong ? .extrabold : .semibold, relativeTo: .caption).monospacedDigit())
+                .foregroundStyle(task.isDone ? Palette.textMuted : strong ? Palette.text : Palette.textSecondary)
                 .frame(width: 44, alignment: .trailing)
-                .padding(.top, 12)
-            TaskBubble(task: task, placement: placement) { toggle(task) }
-                .opacity(isDragged ? 0 : 1)
-                .overlay {
-                    if isDragged {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(Color.accentColor.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
-                    }
-                }
+                .padding(.top, 6)
+            if isDragged {
+                dropSlot(placement)
+            } else {
+                TaskBubble(task: task, placement: placement, now: now) { toggle(task) }
+            }
         }
-        .padding(.vertical, 3)
+        .padding(.vertical, 4)
         .id(placement.id)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.space)) } action: { frames[placement.id] = $0 }
         .contentShape(Rectangle())
@@ -132,18 +204,49 @@ struct DayTimeline: View {
         .accessibilityAction(named: "Ouvrir") { onSelect(task) }
     }
 
-    /// Copie de la bulle soulevée, qui suit le doigt.
+    /// Place réservée pendant un glisser : « Déposer ici · 16:15 – 16:30 ».
+    private func dropSlot(_ placement: Placement) -> some View {
+        let height = TaskBubble.capsuleHeight(placement.end - placement.start)
+        let shape = RoundedRectangle(cornerRadius: TaskBubble.capsuleWidth / 2, style: .continuous)
+        return HStack(spacing: 10) {
+            shape
+                .fill(Palette.accent.opacity(0.08))
+                .overlay { shape.strokeBorder(Palette.accent, style: StrokeStyle(lineWidth: 2, dash: [6, 4])) }
+                .frame(width: TaskBubble.capsuleWidth, height: height)
+            Text("Déposer ici · \(TimeText.clock(placement.start)) – \(TimeText.clock(placement.end))")
+                .font(.chip)
+                .foregroundStyle(Palette.accentSoft)
+            Spacer(minLength: 0)
+        }
+        .frame(minHeight: height)
+    }
+
+    /// Copie de la tâche soulevée, qui suit le doigt, légèrement inclinée.
     @ViewBuilder
     private func floatingBubble(byId: [UUID: TaskItem], layout: DayLayout) -> some View {
         if let drag, let task = byId[drag.id], let placement = layout.placements.first(where: { $0.id == drag.id }) {
-            HStack(alignment: .top, spacing: 10) {
-                Color.clear.frame(width: 44)
-                TaskBubble(task: task, placement: placement) {}
-                    .scaleEffect(1.03)
-                    .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
+            HStack(spacing: 12) {
+                Circle().fill(TagColors.of(task.tag).vivid).frame(width: 10, height: 10)
+                Text(task.title)
+                    .font(.manrope(15, .bold, relativeTo: .body))
+                    .foregroundStyle(Palette.text)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text(TimeText.duration(placement.end - placement.start))
+                    .font(.meta)
+                    .foregroundStyle(Palette.textSecondary)
             }
             .padding(.horizontal, 16)
-            .offset(y: drag.fingerY - drag.grabOffset)
+            .frame(height: 64)
+            .background(Palette.control, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Palette.borderStrong, lineWidth: 1)
+            }
+            .rotationEffect(.degrees(-2))
+            .shadow(color: .black.opacity(0.6), radius: 24, y: 24)
+            .padding(.leading, 44)
+            .padding(.trailing, 36)
+            .offset(y: drag.fingerY - 32)
             .allowsHitTesting(false)
         }
     }
@@ -187,7 +290,7 @@ struct DayTimeline: View {
             }
     }
 
-    /// Position visée : nombre d'autres bulles dont le milieu est au-dessus du doigt.
+    /// Position visée : nombre d'autres lignes dont le milieu est au-dessus du doigt.
     private func updateTarget(sequence: [UUID]) {
         guard let current = drag else { return }
         let target = sequence
@@ -281,7 +384,7 @@ struct DayTimeline: View {
 struct EndOfDayFooter: View {
     let layout: DayLayout
 
-    private static let lateThreshold: Minutes = 22 * 60
+    static let lateThreshold: Minutes = 22 * 60
 
     var body: some View {
         let end = layout.endOfDay ?? 0
@@ -296,10 +399,10 @@ struct EndOfDayFooter: View {
                 Text("· ancres qui se chevauchent")
             }
         }
-        .font(.caption)
-        .foregroundStyle(late || crowded ? Color.gentleWarning : .secondary)
+        .font(.meta)
+        .foregroundStyle(late || crowded ? Palette.warning : Palette.textTertiary)
         .padding(.leading, 54)
-        .padding(.top, 10)
+        .padding(.top, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

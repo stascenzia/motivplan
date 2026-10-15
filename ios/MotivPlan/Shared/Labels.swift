@@ -21,15 +21,8 @@ extension TaskTag {
         }
     }
 
-    /// Teinte douce des bulles. « Urgent » reste ambre, jamais rouge (principe 2).
-    var tint: Color {
-        switch self {
-        case .urgent: .gentleWarning
-        case .travail: .purple
-        case .medium: .blue
-        case .detente: .mint
-        }
-    }
+    /// Couleur vive de l’étiquette (DesignSystem/Theme.swift). « Urgent » est rose doux, jamais rouge (principe 2).
+    var tint: Color { TagColors.of(self).vivid }
 }
 
 extension Review {
@@ -70,7 +63,7 @@ extension SectionRepeat {
 
 extension Color {
     /// Signal sobre des retards : ambre doux, jamais rouge (principe 2).
-    static let gentleWarning = Color(red: 0.84, green: 0.62, blue: 0.24)
+    static let gentleWarning = Palette.warning
 }
 
 enum DayLabel {

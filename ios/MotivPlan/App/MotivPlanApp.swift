@@ -34,19 +34,24 @@ struct MotivPlanApp: App {
     var body: some Scene {
         let sync = self.sync
         WindowGroup {
-            switch provider.result {
-            case .success(let container):
-                RootView(captureRequested: $captureRequested)
-                    .onOpenURL { url in
-                        if url.scheme == AppGroup.urlScheme, url.host() == "capture" {
-                            captureRequested = true
+            Group {
+                switch provider.result {
+                case .success(let container):
+                    RootView(captureRequested: $captureRequested)
+                        .onOpenURL { url in
+                            if url.scheme == AppGroup.urlScheme, url.host() == "capture" {
+                                captureRequested = true
+                            }
                         }
-                    }
-                    .modelContainer(container)
-                    .environment(sync)
-            case .failure:
-                StoreUnavailableView()
+                        .modelContainer(container)
+                        .environment(sync)
+                case .failure:
+                    StoreUnavailableView()
+                }
             }
+            // Les maquettes n'existent qu'en sombre (docs/design-etude.md) ; Info.plist force aussi le style.
+            .preferredColorScheme(.dark)
+            .tint(Palette.accent)
         }
         .backgroundTask(.appRefresh(SyncBackground.identifier)) {
             SyncBackground.schedule()

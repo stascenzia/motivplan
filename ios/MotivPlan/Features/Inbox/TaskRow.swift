@@ -2,84 +2,121 @@ import CoreModels
 import SwiftUI
 import TimelineEngine
 
-/// Ligne de tâche : titre, puis étiquette, échéance et dernière fois, en discret.
+/// Ligne de tâche (maquette « Boîte de réception ») : icône de la source, titre, une ligne
+/// discrète (source et date, échéance, jour prévu, dernière fois), point de l'étiquette.
+/// Le fond est posé par le conteneur.
 struct TaskRow: View {
     let task: TaskItem
     let today: DayKey
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
+        HStack(spacing: 12) {
+            Image(systemName: sourceSymbol)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Palette.textSecondary)
+                .frame(width: 34, height: 34)
+                .background(Palette.control, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
                 Text(task.title)
-                    .foregroundStyle(.primary)
-                if task.source == .siri {
-                    Image(systemName: "waveform")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .accessibilityLabel("Capturée avec Siri")
-                }
+                    .font(.taskTitle)
+                    .foregroundStyle(Palette.text)
+                    .multilineTextAlignment(.leading)
+                details
+                    .font(.meta)
+                    .lineLimit(1)
             }
-            if hasDetails {
-                HStack(spacing: 8) {
-                    if let tag = task.tag {
-                        Label(tag.label, systemImage: tag.symbol)
-                            .foregroundStyle(tag.tint)
-                    }
-                    if let due = task.dueDate {
-                        Label(DayLabel.text(for: due, today: today), systemImage: "flag")
-                            .foregroundStyle(task.isOverdue(today: today) ? Color.gentleWarning : .secondary)
-                    }
-                    if let day = task.scheduledDate {
-                        Label(DayLabel.text(for: day, today: today), systemImage: "calendar")
-                    }
-                    if let last = lastDone {
-                        Label("Fait \(DayLabel.since(last, today: today))", systemImage: "checkmark")
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .labelStyle(.titleAndIcon)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if let tag = task.tag {
+                Circle()
+                    .fill(TagColors.of(tag).vivid)
+                    .frame(width: 8, height: 8)
+                    .accessibilityLabel(tag.label)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .frame(minHeight: 58)
+        .contentShape(Rectangle())
+    }
+
+    /// « Siri · il y a 12 min · Échéance demain ». L'échéance passée est en ambre.
+    private var details: Text {
+        var text = Text(origin).foregroundStyle(Palette.textTertiary)
+        if let due = task.dueDate {
+            let late = task.isOverdue(today: today)
+            text = text + Text(" · Échéance \(DayLabel.text(for: due, today: today).lowercased())")
+                .foregroundStyle(late ? Palette.warning : Palette.textTertiary)
+        }
+        if let day = task.scheduledDate {
+            text = text + Text(" · Prévue \(DayLabel.text(for: day, today: today).lowercased())")
+                .foregroundStyle(Palette.accentSoft)
+        }
+        if let last = lastDone {
+            text = text + Text(" · Fait \(DayLabel.since(last, today: today))")
+                .foregroundStyle(Palette.textTertiary)
+        }
+        return text
+    }
+
+    private var origin: String {
+        let source = switch task.source {
+        case .siri: "Siri"
+        case .widget: "Widget"
+        case .manual: "Dans l'app"
+        }
+        return "\(source) · \(DayLabel.since(task.createdAt, today: today))"
+    }
+
+    private var sourceSymbol: String {
+        switch task.source {
+        case .siri: "waveform"
+        case .widget: "square.grid.2x2"
+        case .manual: "pencil"
+        }
     }
 
     /// Une permanente garde en boîte la date de la dernière fois.
     private var lastDone: Date? {
         task.status == .inbox ? task.completedAt : nil
     }
-
-    private var hasDetails: Bool {
-        task.tag != nil || task.dueDate != nil || task.scheduledDate != nil || lastDone != nil
-    }
 }
 
-/// Ligne d'un élément de mémoire : avis, date, commentaire.
+/// Ligne d'un élément de mémoire : avis, commentaire, date.
 struct MemoryRow: View {
     let task: TaskItem
     let today: DayKey
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: task.review?.symbol ?? "checkmark.circle")
-                .foregroundStyle(.secondary)
-                .frame(width: 24)
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: task.review?.symbol ?? "checkmark")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(task.review == .aime ? Palette.accent : Palette.textSecondary)
+                .frame(width: 34, height: 34)
+                .background(Palette.control, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 Text(task.title)
-                if let note = task.reviewNote {
+                    .font(.taskTitle)
+                    .foregroundStyle(Palette.text)
+                if let note = task.reviewNote, !note.isEmpty {
                     Text(note)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                        .font(.manrope(13, .medium, relativeTo: .footnote))
+                        .foregroundStyle(Palette.textSecondary)
                         .lineLimit(2)
                 }
                 HStack(spacing: 6) {
                     if let review = task.review { Text(review.label) }
                     if let done = task.completedAt { Text(DayLabel.since(done, today: today)) }
                 }
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+                .font(.meta)
+                .foregroundStyle(Palette.textTertiary)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, 2)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(minHeight: 58)
+        .contentShape(Rectangle())
     }
 }

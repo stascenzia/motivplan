@@ -30,62 +30,66 @@ struct SectionEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    TextField("Nom de la section", text: $name)
-                        .font(.headline)
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 10) {
-                        ForEach(Self.symbols, id: \.self) { candidate in
-                            Button {
-                                symbol = candidate
-                            } label: {
-                                Image(systemName: candidate)
-                                    .font(.title3)
-                                    .frame(width: 40, height: 40)
-                                    .background(symbol == candidate ? Color.accentColor.opacity(0.2) : Color.clear,
-                                                in: Circle())
+                Group {
+                    Section {
+                        TextField("Nom de la section", text: $name)
+                            .font(.headline)
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 10) {
+                            ForEach(Self.symbols, id: \.self) { candidate in
+                                Button {
+                                    symbol = candidate
+                                } label: {
+                                    Image(systemName: candidate)
+                                        .font(.title3)
+                                        .frame(width: 40, height: 40)
+                                        .background(symbol == candidate ? Color.accentColor.opacity(0.2) : Color.clear,
+                                                    in: Circle())
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(candidate)
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(candidate)
                         }
+                        .padding(.vertical, 4)
                     }
-                    .padding(.vertical, 4)
-                }
 
-                Section {
-                    Toggle("Planifiable", isOn: $isPlannable)
+                    Section {
+                        Toggle("Planifiable", isOn: $isPlannable)
+                        if isPlannable {
+                            Picker("Répétition", selection: $repeatRule) {
+                                ForEach(SectionRepeat.allCases, id: \.self) { Text($0.label).tag($0) }
+                            }
+                        }
+                        Toggle("Garder en mémoire", isOn: $keepsMemory)
+                    } header: {
+                        Text("Règles")
+                    } footer: {
+                        Text(rulesExplanation)
+                    }
+
                     if isPlannable {
-                        Picker("Répétition", selection: $repeatRule) {
-                            ForEach(SectionRepeat.allCases, id: \.self) { Text($0.label).tag($0) }
-                        }
-                    }
-                    Toggle("Garder en mémoire", isOn: $keepsMemory)
-                } header: {
-                    Text("Règles")
-                } footer: {
-                    Text(rulesExplanation)
-                }
-
-                if isPlannable {
-                    Section {
-                        Toggle("Durée suggérée", isOn: $hasDuration)
-                        if hasDuration {
-                            Stepper(value: $duration, in: Durations.minimum...480, step: 5) {
-                                LabeledContent("Durée", value: TimeText.duration(duration))
+                        Section {
+                            Toggle("Durée suggérée", isOn: $hasDuration)
+                            if hasDuration {
+                                Stepper(value: $duration, in: Durations.minimum...480, step: 5) {
+                                    LabeledContent("Durée", value: TimeText.duration(duration))
+                                }
                             }
+                        } footer: {
+                            Text("Utilisée quand tu déposes une tâche de cette section qui n'a pas de durée. Sinon : \(TimeText.duration(Durations.fallback)).")
                         }
-                    } footer: {
-                        Text("Utilisée quand tu déposes une tâche de cette section qui n'a pas de durée. Sinon : \(TimeText.duration(Durations.fallback)).")
                     }
-                }
 
-                if section != nil {
-                    Section {
-                        Button("Supprimer la section", role: .destructive) { confirmDelete = true }
-                    } footer: {
-                        Text("Ses tâches retournent dans « À trier ». Rien n'est perdu.")
+                    if section != nil {
+                        Section {
+                            Button("Supprimer la section", role: .destructive) { confirmDelete = true }
+                        } footer: {
+                            Text("Ses tâches retournent dans « À trier ». Rien n'est perdu.")
+                        }
                     }
                 }
+                .formRow()
             }
+            .themedForm()
             .navigationTitle(section == nil ? "Nouvelle section" : "Section")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

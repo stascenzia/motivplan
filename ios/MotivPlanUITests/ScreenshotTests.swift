@@ -33,7 +33,7 @@ final class ScreenshotTests: XCTestCase {
     @MainActor
     func testInboxScreens() throws {
         let app = launch()
-        app.tabBars.buttons["Boîte"].tap()
+        app.buttons["tab-Boîte"].tap()
 
         let plumber = element(app, "Appeler le plombier")
         XCTAssertTrue(plumber.waitForExistence(timeout: 30))
@@ -49,24 +49,29 @@ final class ScreenshotTests: XCTestCase {
         snapshot(app, "14-planifier-le")
         app.buttons["Annuler"].tap()
 
+        // Toucher une tâche la déplie et montre les actions rapides.
         element(app, "Renouveler le passeport").tap()
+        let detail = app.buttons["Détail"]
+        XCTAssertTrue(detail.waitForExistence(timeout: 15))
+        snapshot(app, "15-actions-rapides")
+        detail.tap()
         XCTAssertTrue(app.navigationBars["Tâche"].waitForExistence(timeout: 15))
-        snapshot(app, "15-detail")
+        snapshot(app, "16-detail")
         app.navigationBars.buttons.element(boundBy: 0).tap()
 
-        let field = app.textFields["capture-field"]
+        let field = app.textFields["inbox-capture-field"]
         XCTAssertTrue(field.waitForExistence(timeout: 15))
         field.tap()
         field.typeText("Racheter du café\n")
         XCTAssertTrue(element(app, "Racheter du café").waitForExistence(timeout: 15))
-        snapshot(app, "16-apres-capture")
+        snapshot(app, "17-apres-capture")
     }
 
-    /// Vue Semaine (lot 6) : une carte par jour, toucher un jour ouvre sa frise.
+    /// Calendrier, mode Semaine : une carte par jour, toucher un jour ouvre sa frise.
     @MainActor
     func testWeekScreen() throws {
         let app = launch()
-        app.tabBars.buttons["Semaine"].tap()
+        app.buttons["tab-Calendrier"].tap()
         XCTAssertTrue(element(app, "Dîner chez Paul").waitForExistence(timeout: 30))
         snapshot(app, "41-semaine")
 
@@ -80,19 +85,23 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(element(app, "Finir le rapport trimestriel").waitForExistence(timeout: 15))
     }
 
-    /// Sections et seconde mémoire (ADR-014).
+    /// Sections et seconde mémoire (ADR-014) : tuiles de la boîte, puis écran de section.
     @MainActor
     func testSectionScreens() throws {
         let app = launch()
-        app.tabBars.buttons["Boîte"].tap()
+        app.buttons["tab-Boîte"].tap()
 
         XCTAssertTrue(element(app, "Quotidiennes").waitForExistence(timeout: 30))
         let films = element(app, "Films et séries")
         scrollIntoView(app, films)
-        XCTAssertTrue(films.waitForExistence(timeout: 15))
-        snapshot(app, "31-sections")
         films.tap()
         XCTAssertTrue(element(app, "The Bear").waitForExistence(timeout: 15))
+        snapshot(app, "31-boite-tuile-films")
+
+        let open = app.buttons["Section et mémoire"]
+        scrollIntoView(app, open)
+        open.tap()
+        XCTAssertTrue(app.buttons["Modifier"].waitForExistence(timeout: 15))
         snapshot(app, "32-section-a-voir")
 
         app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Mémoire")).firstMatch.tap()
@@ -106,17 +115,37 @@ final class ScreenshotTests: XCTestCase {
 
         app.navigationBars.buttons.element(boundBy: 0).tap()
         let recurring = element(app, "Récurrentes")
-        scrollIntoView(app, recurring)
+        XCTAssertTrue(recurring.waitForExistence(timeout: 15))
         recurring.tap()
-        XCTAssertTrue(element(app, "Faire une lessive").waitForExistence(timeout: 15))
-        snapshot(app, "35-section-recurrentes")
+        let laundry = element(app, "Faire une lessive")
+        scrollIntoView(app, laundry)
+        XCTAssertTrue(laundry.waitForExistence(timeout: 15))
+        snapshot(app, "35-boite-tuile-recurrentes")
     }
 
-    /// Le widget ouvre `motivplan://capture` : boîte de réception, clavier levé, source « widget ».
+    /// Le bouton « + » ouvre la capture plein écran ; on enchaîne deux captures.
+    @MainActor
+    func testCaptureButton() throws {
+        let app = launch()
+        let plus = app.buttons["tab-capture"]
+        XCTAssertTrue(plus.waitForExistence(timeout: 30))
+        plus.tap()
+
+        let field = app.textFields["capture-field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 15))
+        field.typeText("Rappeler le garage\n")
+        XCTAssertTrue(element(app, "Rappeler le garage").waitForExistence(timeout: 15))
+        field.typeText("Sortir les poubelles")
+        snapshot(app, "05-capture")
+        app.buttons["Fermer"].tap()
+    }
+
+    /// Le widget ouvre `motivplan://capture` : capture plein écran, clavier levé, source « widget ».
     @MainActor
     func testWidgetDeepLink() throws {
         let app = launch()
-        XCTAssertTrue(app.tabBars.buttons["Jour"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["tab-Planning"].waitForExistence(timeout: 30))
         app.open(URL(string: "motivplan://capture")!)
 
         let field = app.textFields["capture-field"]
@@ -127,14 +156,14 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(element(app, "Idée captée par le widget").waitForExistence(timeout: 15))
     }
 
-    /// La barre d'onglets flottante d'iOS 26 recouvre le bas de l'écran : on fait défiler
-    /// doucement jusqu'à ce que l'élément soit au-dessus.
+    /// La barre d'onglets flottante recouvre le bas de l'écran : on fait défiler doucement
+    /// jusqu'à ce que l'élément soit au-dessus.
     @MainActor
     private func scrollIntoView(_ app: XCUIApplication, _ element: XCUIElement) {
         let limit = app.frame.height * 0.7
-        // Une liste ne crée ses lignes qu'à l'approche de l'écran : on défile tant qu'elle manque.
+        // Une pile paresseuse ne crée ses lignes qu'à l'approche de l'écran : on défile tant qu'elle manque.
         for _ in 0..<6 where !element.exists || element.frame.maxY > limit {
-            app.collectionViews.firstMatch.swipeUp(velocity: .slow)
+            app.scrollViews.firstMatch.swipeUp(velocity: .slow)
         }
     }
 
@@ -146,7 +175,7 @@ final class ScreenshotTests: XCTestCase {
         return app
     }
 
-    /// Une ligne de liste regroupe ses textes dans un seul libellé : on cherche par début de libellé.
+    /// Une ligne regroupe ses textes dans un seul libellé : on cherche par début de libellé.
     @MainActor
     private func element(_ app: XCUIApplication, _ title: String) -> XCUIElement {
         app.descendants(matching: .any)
