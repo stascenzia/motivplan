@@ -1,5 +1,6 @@
 import CoreModels
 import SwiftUI
+import SyncClient
 
 /// Onglets : Jour, Semaine, Boîte de réception.
 struct RootView: View {
@@ -7,6 +8,7 @@ struct RootView: View {
 
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var context
+    @Environment(SyncCoordinator.self) private var sync: SyncCoordinator?
 
     private enum Tab: Hashable { case day, week, inbox }
     @State private var tab: Tab = .day
@@ -37,10 +39,17 @@ struct RootView: View {
         }
         // Report silencieux à la première ouverture après minuit (ADR-007) : ni écran ni notification.
         .onChange(of: scenePhase, initial: true) { _, phase in
-            if phase == .active {
+            switch phase {
+            case .active:
                 let store = TaskStore(context: context)
                 try? store.ensureDefaultSections()
                 _ = try? store.rollover()
+                // Synchro au passage au premier plan, après le report (plan, §Synchronisation).
+                Task { await sync?.syncNow() }
+            case .background:
+                SyncBackground.schedule()
+            default:
+                break
             }
         }
     }

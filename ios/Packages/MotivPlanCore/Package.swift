@@ -17,5 +17,6 @@ let package = Package(
         .target(name: "CoreIntents", dependencies: ["CoreModels"]),
         .target(name: "SyncClient", dependencies: ["CoreModels"]),
         .testTarget(name: "CoreModelsTests", dependencies: ["CoreModels", "TimelineEngine"]),
+        .testTarget(name: "SyncClientTests", dependencies: ["SyncClient", "CoreModels"]),
     ]
 )

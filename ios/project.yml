@@ -36,6 +36,8 @@ targets:
         product: CoreModels
       - package: MotivPlanCore
         product: CoreIntents
+      - package: MotivPlanCore
+        product: SyncClient
       - package: TimelineEngine
     info:
       path: MotivPlan/Info.plist
@@ -44,6 +46,11 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
+        # Synchro d'arrière-plan (lot 8).
+        UIBackgroundModes:
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - fr.ascenzia.motivplan.sync
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft

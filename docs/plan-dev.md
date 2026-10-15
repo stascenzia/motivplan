@@ -196,6 +196,13 @@ Chaque lot se termine par un commit (Conventional Commits), une app installable 
 - `needsSync`, `SyncClient` (URLSession, DTO Codable alignés sur les schémas Pydantic), déclencheurs, réglages URL + jeton (Keychain).
 - Critère 5 vérifié : mutations en mode avion sur deux appareils ou appareil + routes de débogage, puis reconnexion sans perte.
 
+### Lot 10 — Intégration du design (M, ajouté le 2026-10-15)
+
+- Les écrans des lots 2 à 6 utilisent des composants iOS standard, en attendant le design. Ce lot applique les maquettes (`docs/MotivPlan — maquettes.html`) : couleurs, typographies, espacements, formes, icônes.
+- Un système de design central dans la cible app (tokens de couleur et de typographie, styles de bulles, de puces et de cartes) : un choix visuel se change à un seul endroit.
+- Habillage écran par écran (Jour, tiroir, Semaine, Boîte, sections, détail, réglages), comparé aux maquettes grâce aux captures de la CI. La logique ne change pas.
+- Placé après le lot 9 à la demande de l'utilisateur ; corrige au passage le tiroir replié qui passe sous la barre d'onglets flottante d'iOS 26.
+
 ### Lot 9 — Finitions v1 (S)
 
 - Passage sur les principes directeurs écran par écran (aucun rouge, aucun compteur d'échec visible hors détail).
