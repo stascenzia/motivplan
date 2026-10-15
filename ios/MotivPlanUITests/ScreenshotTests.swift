@@ -86,9 +86,10 @@ final class ScreenshotTests: XCTestCase {
         let app = launch()
         app.tabBars.buttons["Boîte"].tap()
 
+        XCTAssertTrue(element(app, "Quotidiennes").waitForExistence(timeout: 30))
         let films = element(app, "Films et séries")
-        XCTAssertTrue(films.waitForExistence(timeout: 30))
         scrollIntoView(app, films)
+        XCTAssertTrue(films.waitForExistence(timeout: 15))
         snapshot(app, "31-sections")
         films.tap()
         XCTAssertTrue(element(app, "The Bear").waitForExistence(timeout: 15))
@@ -131,7 +132,8 @@ final class ScreenshotTests: XCTestCase {
     @MainActor
     private func scrollIntoView(_ app: XCUIApplication, _ element: XCUIElement) {
         let limit = app.frame.height * 0.7
-        for _ in 0..<6 where element.frame.maxY > limit {
+        // Une liste ne crée ses lignes qu'à l'approche de l'écran : on défile tant qu'elle manque.
+        for _ in 0..<6 where !element.exists || element.frame.maxY > limit {
             app.collectionViews.firstMatch.swipeUp(velocity: .slow)
         }
     }
