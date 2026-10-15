@@ -66,7 +66,7 @@ struct InboxView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 24)
+                .padding(.bottom, TabBarMetrics.contentInset)
             }
         }
         .scrollDismissesKeyboard(.interactively)

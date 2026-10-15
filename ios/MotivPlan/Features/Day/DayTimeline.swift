@@ -125,8 +125,8 @@ struct DayTimeline: View {
         }
         .padding(.horizontal, 12)
         .padding(.top, 14)
-        // Laisse la fin de journée visible au-dessus du tiroir replié.
-        .padding(.bottom, 100)
+        // Laisse la fin de journée visible au-dessus du tiroir replié et de la barre d'onglets.
+        .padding(.bottom, TabBarMetrics.contentInset + 80)
     }
 
     /// Puces du haut : tâches faites, heure de fin prévue.

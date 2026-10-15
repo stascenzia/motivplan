@@ -5,8 +5,8 @@ import SyncClient
 
 /// Coque de l'app : Planning, Boîte, Calendrier, et la capture au centre de la barre.
 ///
-/// Les trois écrans restent vivants côte à côte (seul le choisi est visible) : chacun garde
-/// sa navigation et son défilement quand on change d'onglet, sans la barre système.
+/// Seul l'écran choisi existe : la barre est masquée dès qu'un écran est poussé, on ne change
+/// donc jamais d'onglet au milieu d'une navigation. Le jour affiché est gardé ici.
 struct RootView: View {
     @Binding var captureRequested: Bool
 
@@ -21,17 +21,23 @@ struct RootView: View {
     @State private var capture: CaptureRequest?
 
     var body: some View {
-        ZStack {
-            screen(.planning) { DayScreen(day: $day) }
-            screen(.inbox) { NavigationStack { InboxView() } }
-            screen(.calendar) {
+        Group {
+            switch tab {
+            case .planning:
+                DayScreen(day: $day)
+            case .inbox:
+                NavigationStack { InboxView() }
+            case .calendar:
                 WeekScreen { opened in
                     day = opened
                     tab = .planning
                 }
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // La barre flotte par-dessus le contenu ; chaque écran garde la place en bas
+        // (TabBarMetrics.contentInset), et le tiroir replié se pose au-dessus.
+        .overlay(alignment: .bottom) {
             if !chrome.isTabBarHidden {
                 FloatingTabBar(selection: $tab, inboxBadge: inbox.filter { $0.sectionId == nil }.count) {
                     capture = CaptureRequest(source: .manual)
@@ -68,14 +74,6 @@ struct RootView: View {
         }
     }
 
-    private func screen<Content: View>(_ value: AppTab, @ViewBuilder content: () -> Content) -> some View {
-        let visible = tab == value
-        return content()
-            .opacity(visible ? 1 : 0)
-            .allowsHitTesting(visible)
-            .accessibilityHidden(!visible)
-            .zIndex(visible ? 1 : 0)
-    }
 }
 
 /// Ouverture de l'écran de capture, avec la source à enregistrer.

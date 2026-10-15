@@ -54,7 +54,8 @@ struct DrawerOverlay<Peek: View, Content: View>: View {
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Palette.border, lineWidth: 1)
         }
         .padding(.horizontal, 16)
-        .padding(.bottom, 12)
+        // Replié, le tiroir n'existe que barre d'onglets visible : il se pose au-dessus.
+        .padding(.bottom, TabBarMetrics.occupied + 10)
         .offset(y: min(0, dragOffset) / 3)
         .contentShape(Rectangle())
         .onTapGesture { detent = .half }

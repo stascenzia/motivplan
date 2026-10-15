@@ -12,6 +12,9 @@ enum TabBarMetrics {
     static let bottomGap: CGFloat = 8
     /// Place à laisser sous le contenu défilant pour qu'il ne passe pas sous la barre.
     static let contentInset: CGFloat = height + bottomGap + 16
+    /// Hauteur occupée par la barre au-dessus de la zone sûre : ce qui doit rester visible
+    /// (le tiroir replié) se pose au-dessus.
+    static let occupied: CGFloat = height + bottomGap
 }
 
 /// Visibilité de la barre : un écran poussé (détail, section) ou le tiroir ouvert la masquent.
