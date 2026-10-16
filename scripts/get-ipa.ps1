@@ -21,9 +21,9 @@ if ($Build) {
     $ipaJob = gh run view $id --repo $repo --json jobs --jq '.jobs[] | select(.name == \"Paquet .ipa\") | .conclusion'
     if ($ipaJob -ne 'success') { throw "Le .ipa n'a pas ete construit : https://github.com/$repo/actions/runs/$id" }
 } else {
-    # Derniere execution sur main dont le job du paquet a reussi.
+    # Derniere execution sur main dont le job du paquet a reussi, meme si les tests tournent encore.
     $id = $null
-    foreach ($candidate in (gh run list --repo $repo --workflow iOS --branch main --status completed --limit 10 --json databaseId --jq '.[].databaseId')) {
+    foreach ($candidate in (gh run list --repo $repo --workflow iOS --branch main --limit 10 --json databaseId --jq '.[].databaseId')) {
         $ipaJob = gh run view $candidate --repo $repo --json jobs --jq '.jobs[] | select(.name == \"Paquet .ipa\") | .conclusion'
         if ($ipaJob -eq 'success') { $id = $candidate; break }
     }
