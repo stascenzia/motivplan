@@ -39,21 +39,20 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(plumber.waitForExistence(timeout: 30))
         snapshot(app, "11-boite-de-reception")
 
-        plumber.press(forDuration: 1.2)
-        XCTAssertTrue(app.buttons["Planifier"].waitForExistence(timeout: 15))
-        snapshot(app, "12-menu-contextuel")
-        app.buttons["Planifier"].tap()
-        snapshot(app, "13-sous-menu-planifier")
-        app.buttons["Planifier le…"].tap()
+        // Toucher une tâche la déplie et montre les actions rapides.
+        plumber.tap()
+        let pick = app.buttons["Planifier le…"]
+        XCTAssertTrue(pick.waitForExistence(timeout: 15))
+        snapshot(app, "12-actions-rapides")
+        pick.tap()
         XCTAssertTrue(app.buttons["Valider"].waitForExistence(timeout: 15))
         snapshot(app, "14-planifier-le")
         app.buttons["Annuler"].tap()
 
-        // Toucher une tâche la déplie et montre les actions rapides.
         element(app, "Renouveler le passeport").tap()
         let detail = app.buttons["Détail"]
         XCTAssertTrue(detail.waitForExistence(timeout: 15))
-        snapshot(app, "15-actions-rapides")
+        snapshot(app, "15-actions-passeport")
         detail.tap()
         XCTAssertTrue(app.navigationBars["Tâche"].waitForExistence(timeout: 15))
         snapshot(app, "16-detail")
@@ -134,6 +133,8 @@ final class ScreenshotTests: XCTestCase {
         let field = app.textFields["capture-field"]
         XCTAssertTrue(field.waitForExistence(timeout: 15))
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 15))
+        // Sur la CI, le champ peut perdre les premières frappes pendant l'animation d'ouverture.
+        field.tap()
         field.typeText("Rappeler le garage\n")
         XCTAssertTrue(element(app, "Rappeler le garage").waitForExistence(timeout: 15))
         field.typeText("Sortir les poubelles")
@@ -152,6 +153,7 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 15))
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 15))
         snapshot(app, "21-capture-depuis-widget")
+        field.tap()
         field.typeText("Idée captée par le widget\n")
         XCTAssertTrue(element(app, "Idée captée par le widget").waitForExistence(timeout: 15))
     }
