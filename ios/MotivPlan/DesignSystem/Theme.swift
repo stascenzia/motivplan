@@ -67,14 +67,20 @@ extension Color {
 
     /// Couleur qui suit l'apparence (claire ou sombre) de l'écran.
     init(light: UInt32, dark: UInt32) {
-        self.init(uiColor: UIColor { traits in
-            UIColor(hex: traits.userInterfaceStyle == .dark ? dark : light)
-        })
+        self.init(uiColor: UIColor.dynamic(light: light, dark: dark))
     }
 }
 
 extension UIColor {
-    convenience init(hex: UInt32) {
+    /// Hors de l'acteur principal : UIKit résout une couleur dynamique sur n'importe quel fil ; une
+    /// fermeture créée sur l'acteur principal y serait rattachée et planterait ailleurs.
+    nonisolated static func dynamic(light: UInt32, dark: UInt32) -> UIColor {
+        UIColor { traits in
+            UIColor(hex: traits.userInterfaceStyle == .dark ? dark : light)
+        }
+    }
+
+    nonisolated convenience init(hex: UInt32) {
         self.init(red: CGFloat((hex >> 16) & 0xFF) / 255,
                   green: CGFloat((hex >> 8) & 0xFF) / 255,
                   blue: CGFloat(hex & 0xFF) / 255,

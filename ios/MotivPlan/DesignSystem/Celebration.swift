@@ -51,7 +51,8 @@ struct ConfettiView: View {
         let size: CGSize
     }
 
-    private let pieces: [Piece] = (0..<36).map { index in
+    /// Tirés une fois : un nouveau rendu du parent ne fait pas sauter les confettis.
+    @State private var pieces: [Piece] = (0..<36).map { index in
         let colors = [Palette.accent, Palette.accentAlt, SectionColors.at(1).vivid, SectionColors.at(2).vivid,
                       SectionColors.at(3).vivid, SectionColors.at(5).vivid]
         return Piece(id: index, x: .random(in: 0...1), delay: .random(in: 0...0.5),
