@@ -78,6 +78,12 @@ final class ScreenshotTests: XCTestCase {
         snapshot(app, "42-semaine-suivante")
         app.buttons["Cette semaine"].tap()
 
+        // Mode Mois (ADR-015) : les périodes à venir, à combien de semaines.
+        app.buttons["calendar-mode-Mois"].tap()
+        XCTAssertTrue(element(app, "Lisbonne").waitForExistence(timeout: 15))
+        snapshot(app, "43-mois")
+        app.buttons["calendar-mode-Semaine"].tap()
+
         let today = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "aujourd'hui")).firstMatch
         XCTAssertTrue(today.waitForExistence(timeout: 15))
         today.tap()

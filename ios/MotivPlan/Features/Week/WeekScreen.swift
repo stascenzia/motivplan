@@ -4,14 +4,20 @@ import SwiftUI
 import TimelineEngine
 
 /// Calendrier, mode Semaine (maquette « Calendrier — semaine ») : une carte par jour, du lundi
-/// au dimanche, avec les tâches en puces, une barre de charge et le temps prévu. On glisse une
-/// puce d'un jour à l'autre ; toucher un jour ouvre sa frise. Le mode Mois arrive en v2.
+/// au dimanche, avec les périodes en bandeau, les tâches en puces, une barre de charge et le temps
+/// prévu. On glisse une puce d'un jour à l'autre ; toucher un jour ouvre sa frise. Le mode Mois
+/// (ADR-015) montre les semaines à venir et les voyages de loin.
 struct WeekScreen: View {
     let openDay: (DayKey) -> Void
+
+    private enum Mode { case week, month }
 
     @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<TaskItem> { $0.deletedAt == nil && $0.scheduledDate != nil })
     private var scheduled: [TaskItem]
+    @Query(TaskItem.periodDescriptor) private var periods: [TaskItem]
+    @State private var mode: Mode = .week
+    @State private var monthStart = MonthView.startOfMonth(containing: DayKeys.key(for: .now))
     @State private var weekStart = DayKeys.startOfWeek(containing: DayKeys.key(for: .now)) ?? DayKeys.key(for: .now)
     @State private var dayPicker: DayPickerRequest?
     @State private var errorMessage: String?
@@ -29,30 +35,49 @@ struct WeekScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     ScreenHeader(title: "Calendrier") {
-                        if !days.contains(today) {
+                        if mode == .week, !days.contains(today) {
                             Button("Cette semaine") {
                                 withAnimation { weekStart = DayKeys.startOfWeek(containing: today) ?? today }
+                            }
+                            .buttonStyle(PillButtonStyle(prominent: true))
+                        } else if mode == .month, monthStart != MonthView.startOfMonth(containing: today) {
+                            Button("Ce mois-ci") {
+                                withAnimation { monthStart = MonthView.startOfMonth(containing: today) }
                             }
                             .buttonStyle(PillButtonStyle(prominent: true))
                         }
                     }
 
-                    weekHeader(planned: planned)
-                        .padding(.leading, 20)
-                        .padding(.trailing, 12)
+                    modePicker
+                        .padding(.horizontal, 16)
                         .padding(.top, 14)
-                        .padding(.bottom, 6)
 
-                    LazyVStack(spacing: 6) {
-                        ForEach(days, id: \.self) { day in
-                            DayCard(day: day, today: today, tasks: tasksByDay[day] ?? [],
-                                    layout: layouts[day] ?? store.layout(of: []),
-                                    store: store, openDay: openDay, moveTo: { task, target in move(task, to: target) },
-                                    pickDay: { dayPicker = $0 }, run: run)
+                    switch mode {
+                    case .week:
+                        weekHeader(planned: planned)
+                            .padding(.leading, 20)
+                            .padding(.trailing, 12)
+                            .padding(.top, 14)
+                            .padding(.bottom, 6)
+
+                        LazyVStack(spacing: 6) {
+                            ForEach(days, id: \.self) { day in
+                                DayCard(day: day, today: today, tasks: tasksByDay[day] ?? [],
+                                        periods: periods.filter { $0.overlaps(from: day, through: day) },
+                                        layout: layouts[day] ?? store.layout(of: []),
+                                        store: store, openDay: openDay, moveTo: { task, target in move(task, to: target) },
+                                        pickDay: { dayPicker = $0 }, run: run)
+                            }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, TabBarMetrics.contentInset)
+                    case .month:
+                        MonthView(monthStart: $monthStart, today: today, tasksByDay: tasksByDay, periods: periods,
+                                  store: store, openDay: openDay)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 14)
+                            .padding(.bottom, TabBarMetrics.contentInset)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, TabBarMetrics.contentInset)
                 }
             }
             .screenBackground()
@@ -72,6 +97,31 @@ struct WeekScreen: View {
             }
             .sensoryFeedback(.success, trigger: moveCount)
         }
+    }
+
+    /// Sélecteur « Semaine | Mois » des maquettes.
+    private var modePicker: some View {
+        HStack(spacing: 2) {
+            modeButton("Semaine", selected: mode == .week) { mode = .week }
+            modeButton("Mois", selected: mode == .month) { mode = .month }
+        }
+        .padding(4)
+        .background(Palette.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private func modeButton(_ label: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) { action() }
+        } label: {
+            Text(label)
+                .font(.manrope(13, selected ? .extrabold : .bold, relativeTo: .footnote))
+                .foregroundStyle(selected ? Palette.onAccent : Palette.textSecondary)
+                .frame(maxWidth: .infinity, minHeight: 34)
+                .background(selected ? Palette.accent : .clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier("calendar-mode-\(label)")
     }
 
     /// « 12 – 18 octobre », « Semaine 42 · 24 h 30 planifiées », flèches.
@@ -129,12 +179,14 @@ struct WeekScreen: View {
     }
 }
 
-/// Carte d'un jour : lettre et numéro à gauche, puces des tâches et barre de charge au milieu,
-/// temps prévu à droite.
+/// Carte d'un jour : lettre et numéro à gauche, périodes en bandeau, puces des tâches et barre de
+/// charge au milieu, temps prévu à droite.
 private struct DayCard: View {
     let day: DayKey
     let today: DayKey
     let tasks: [TaskItem]
+    /// Périodes qui couvrent ce jour (voyages) : jamais dans la frise, seulement ici (ADR-015).
+    let periods: [TaskItem]
     let layout: DayLayout
     let store: TaskStore
     let openDay: (DayKey) -> Void
@@ -170,6 +222,9 @@ private struct DayCard: View {
             .accessibilityHint("Ouvre la journée")
 
             VStack(alignment: .leading, spacing: 7) {
+                ForEach(periods) { period in
+                    periodBanner(period)
+                }
                 if layout.placements.isEmpty {
                     Text(targeted ? "Lâche ici" : "Journée libre")
                         .font(.meta)
@@ -221,6 +276,28 @@ private struct DayCard: View {
             return true
         } isTargeted: { targeted = $0 }
         .animation(.easeInOut(duration: 0.15), value: targeted)
+    }
+
+    /// « Lisbonne · jour 2 / 5 », sur la couleur de la période.
+    private func periodBanner(_ period: TaskItem) -> some View {
+        let colors = SectionColors.of(period.id)
+        let start = period.startDate ?? day
+        let length = PeriodLabel.daysBetween(start, period.periodEnd ?? start) + 1
+        let index = PeriodLabel.daysBetween(start, day) + 1
+        return HStack(spacing: 6) {
+            Text(period.title)
+                .lineLimit(1)
+            if length > 1 {
+                Text("· jour \(index) / \(length)")
+                    .opacity(0.85)
+            }
+        }
+        .font(.manrope(12, .extrabold, relativeTo: .caption))
+        .foregroundStyle(Palette.onAccent)
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, minHeight: 24, alignment: .leading)
+        .background(colors.vivid, in: Capsule())
+        .accessibilityElement(children: .combine)
     }
 
     private var isLate: Bool {
