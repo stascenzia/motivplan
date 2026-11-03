@@ -19,6 +19,9 @@ struct TaskBubble: View {
     var now: Minutes?
     let onToggle: () -> Void
 
+    /// Gerbe de points quand on coche.
+    @State private var burst = 0
+
     private enum Look { case done, current, anchored, upcoming }
 
     var body: some View {
@@ -114,7 +117,10 @@ struct TaskBubble: View {
     }
 
     private func checkButton(_ colors: TagColors) -> some View {
-        Button(action: onToggle) {
+        Button {
+            if !task.isDone { burst += 1 }
+            onToggle()
+        } label: {
             ZStack {
                 if look == .done {
                     Circle().fill(colors.vivid)
@@ -126,6 +132,8 @@ struct TaskBubble: View {
                 }
             }
             .frame(width: 26, height: 26)
+            .scaleEffect(look == .done ? 1 : 0.92)
+            .overlay { CheckBurst(trigger: burst, color: colors.vivid) }
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
         }

@@ -126,9 +126,17 @@ extension View {
             .background(fill, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
     }
 
-    /// Fond de toutes les pages.
+    /// Fond de toutes les pages : la couleur de fond, avec un voile coloré qui s'estompe sous l'en-tête.
     func screenBackground() -> some View {
-        background(Palette.background.ignoresSafeArea())
+        background {
+            ZStack(alignment: .top) {
+                Palette.background
+                LinearGradient(colors: [Palette.accent.opacity(0.16), Palette.accentAlt.opacity(0.06), .clear],
+                               startPoint: .topLeading, endPoint: .bottom)
+                    .frame(height: 320)
+            }
+            .ignoresSafeArea()
+        }
     }
 
     /// Formulaire système (réglages, éditeurs) aux couleurs des maquettes : fond de page,
@@ -286,7 +294,7 @@ struct FieldCard<Content: View>: View {
             .padding(.leading, 18)
             .padding(.trailing, 6)
             .frame(minHeight: 54)
-            .background(highlighted ? Color(hex: 0x1E1E24) : Palette.surface,
+            .background(highlighted ? Palette.highlightFill : Palette.surface,
                         in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 20, style: .continuous)

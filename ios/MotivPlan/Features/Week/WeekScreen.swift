@@ -189,7 +189,7 @@ private struct DayCard: View {
                     .overlay(alignment: .leading) {
                         GeometryReader { geometry in
                             Capsule()
-                                .fill(isToday ? Palette.accent : Color(hex: 0x5C5C7A))
+                                .fill(isToday ? Palette.accent : Palette.loadBar)
                                 .frame(width: geometry.size.width * min(1, CGFloat(total) / CGFloat(Self.fullDay)))
                         }
                     }
@@ -206,11 +206,11 @@ private struct DayCard: View {
         .padding(.leading, 10)
         .padding(.trailing, 14)
         .frame(minHeight: 70)
-        .background(isToday ? Color(hex: 0x1C1C24) : Palette.surface,
+        .background(isToday ? Palette.highlightFill : Palette.surface,
                     in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(targeted || isToday ? Palette.accent : Color(hex: 0x1E1E24),
+                .strokeBorder(targeted || isToday ? Palette.accent : Palette.hairline,
                               lineWidth: targeted ? 2 : isToday ? 1.5 : 1)
         }
         .contentShape(Rectangle())

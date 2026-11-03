@@ -11,6 +11,7 @@ struct MotivPlanApp: App {
     private let provider: StoreProvider
     private let sync: SyncCoordinator?
     @State private var captureRequested = false
+    @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .light
 
     init() {
         // Les tests d'interface lancent l'app avec un store en mémoire et des données d'exemple.
@@ -49,8 +50,8 @@ struct MotivPlanApp: App {
                     StoreUnavailableView()
                 }
             }
-            // Les maquettes n'existent qu'en sombre (docs/design-etude.md) ; Info.plist force aussi le style.
-            .preferredColorScheme(.dark)
+            // Claire par défaut (retours du 2026-11-03) ; les maquettes sombres restent au choix.
+            .preferredColorScheme(appearance.colorScheme)
             .tint(Palette.accent)
         }
         .backgroundTask(.appRefresh(SyncBackground.identifier)) {

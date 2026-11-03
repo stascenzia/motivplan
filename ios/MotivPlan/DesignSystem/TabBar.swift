@@ -78,7 +78,7 @@ struct FloatingTabBar: View {
         .frame(height: TabBarMetrics.height)
         .background(Palette.bar, in: Capsule())
         .overlay { Capsule().strokeBorder(Palette.border, lineWidth: 1) }
-        .shadow(color: .black.opacity(0.55), radius: 20, y: 16)
+        .shadow(color: Palette.shadowStrong, radius: 20, y: 12)
         .padding(.horizontal, 16)
         .padding(.bottom, TabBarMetrics.bottomGap)
     }
@@ -104,7 +104,7 @@ struct FloatingTabBar: View {
                         .foregroundStyle(Palette.text)
                         .padding(.horizontal, 5)
                         .frame(minWidth: 18, minHeight: 18)
-                        .background(Color(hex: 0x34344A), in: Capsule())
+                        .background(Palette.badge, in: Capsule())
                         .offset(x: -8, y: 2)
                 }
             }

@@ -24,6 +24,9 @@ struct DayTimeline: View {
     @State private var liftCount = 0
     @State private var dropCount = 0
     @State private var doneCount = 0
+    /// Journée bouclée : confettis.
+    @State private var celebration = 0
+    @State private var showConfetti = false
     @State private var errorMessage: String?
 
     private static let space = "timeline"
@@ -82,6 +85,18 @@ struct DayTimeline: View {
         .sensoryFeedback(.impact(weight: .medium), trigger: liftCount)
         .sensoryFeedback(.success, trigger: dropCount)
         .sensoryFeedback(.success, trigger: doneCount)
+        .sensoryFeedback(.impact(weight: .heavy), trigger: celebration)
+        .overlay {
+            if showConfetti {
+                ConfettiView().id(celebration)
+            }
+        }
+        .task(id: celebration) {
+            guard celebration > 0 else { return }
+            showConfetti = true
+            try? await Task.sleep(for: .seconds(3))
+            showConfetti = false
+        }
         .alert("Action impossible", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -129,21 +144,42 @@ struct DayTimeline: View {
         .padding(.bottom, TabBarMetrics.contentInset + 80)
     }
 
-    /// Puces du haut : tâches faites, heure de fin prévue.
+    /// En-tête de la frise : un mot d'encouragement, la progression, l'heure de fin prévue.
+    /// Seul ce qui est fait se compte, jamais ce qui reste en retard (principe 2).
     private func summary(_ dayTasks: [TaskItem], layout: DayLayout) -> some View {
         let done = dayTasks.filter(\.isDone).count
-        return HStack(spacing: 8) {
-            Chip(text: done == 1 ? "1 faite" : "\(done) faites", systemImage: "checkmark",
-                 tone: done > 0 ? .accent : .neutral, height: 32)
-            if let end = layout.endOfDay {
-                Chip(text: end >= 24 * 60 ? "Fin après minuit" : "Fin vers \(TimeText.clock(end))",
-                     systemImage: "clock", tone: end > EndOfDayFooter.lateThreshold ? .warning : .neutral,
-                     height: 32)
+        let total = dayTasks.count
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: done == total ? "party.popper.fill" : done == 0 ? "sparkles" : "flame.fill")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(done == total ? Palette.accentAlt : Palette.accent)
+                Text(Self.cheer(done: done, total: total))
+                    .font(.manrope(14, .extrabold, relativeTo: .subheadline))
+                    .foregroundStyle(Palette.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Spacer(minLength: 4)
+                if let end = layout.endOfDay {
+                    Chip(text: end >= 24 * 60 ? "Fin après minuit" : "Fin vers \(TimeText.clock(end))",
+                         systemImage: "clock", tone: end > EndOfDayFooter.lateThreshold ? .warning : .neutral,
+                         height: 28)
+                }
             }
-            Spacer(minLength: 0)
+            ProgressBar(value: total > 0 ? Double(done) / Double(total) : 0)
         }
         .padding(.horizontal, 20)
         .padding(.top, 14)
+        .accessibilityElement(children: .combine)
+        .accessibilityValue("\(done) sur \(total) faites")
+    }
+
+    /// « C'est parti : 5 tâches », « Bien lancé · 2 / 5 », « À mi-chemin », « Journée bouclée ! ».
+    static func cheer(done: Int, total: Int) -> String {
+        if total > 0, done == total { return "Journée bouclée, bravo !" }
+        if done == 0 { return total == 1 ? "C'est parti : 1 tâche" : "C'est parti : \(total) tâches" }
+        if done * 2 >= total { return "Plus que \(total - done), tu y es presque · \(done) / \(total)" }
+        return "Bien lancé · \(done) / \(total)"
     }
 
     private var emptyDay: some View {
@@ -243,7 +279,7 @@ struct DayTimeline: View {
                 RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Palette.borderStrong, lineWidth: 1)
             }
             .rotationEffect(.degrees(-2))
-            .shadow(color: .black.opacity(0.6), radius: 24, y: 24)
+            .shadow(color: Palette.shadowStrong, radius: 24, y: 20)
             .padding(.leading, 44)
             .padding(.trailing, 36)
             .offset(y: drag.fingerY - 32)
@@ -368,7 +404,10 @@ struct DayTimeline: View {
         withAnimation(.spring(duration: 0.35)) {
             run { try store.toggleDone(task) }
         }
-        if !wasDone { doneCount += 1 }
+        guard !wasDone else { return }
+        doneCount += 1
+        let dayTasks = rows.filter(\.isOnDay)
+        if !dayTasks.isEmpty, dayTasks.allSatisfy(\.isDone) { celebration += 1 }
     }
 
     private func run(_ action: () throws -> Void) {

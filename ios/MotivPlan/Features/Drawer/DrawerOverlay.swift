@@ -92,7 +92,7 @@ struct DrawerOverlay<Peek: View, Content: View>: View {
         .frame(height: height, alignment: .top)
         .background(Palette.surface, in: UnevenRoundedRectangle(topLeadingRadius: 30, topTrailingRadius: 30,
                                                                   style: .continuous))
-        .shadow(color: .black.opacity(0.5), radius: 20, y: -12)
+        .shadow(color: Palette.shadowStrong, radius: 20, y: -8)
         .ignoresSafeArea(edges: .bottom)
         .transition(.move(edge: .bottom))
     }

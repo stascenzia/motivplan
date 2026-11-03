@@ -11,11 +11,18 @@ struct SettingsView: View {
     @State private var serverText = SyncSettings.serverURL?.absoluteString ?? ""
     @State private var token = SyncSettings.token ?? ""
     @State private var invalidURL = false
+    @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .light
 
     var body: some View {
         NavigationStack {
             Form {
                 Group {
+                    Section {
+                        Picker("Apparence", selection: $appearance) {
+                            ForEach(AppAppearance.allCases) { Text($0.label).tag($0) }
+                        }
+                    }
+
                     Section {
                         Stepper(value: $settings.dayStart, in: 0...(22 * 60), step: 15) {
                             LabeledContent("Début de journée", value: TimeText.clock(settings.dayStart))

@@ -121,9 +121,10 @@ struct InboxView: View {
 
     private var tiles: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-            tile(name: "À trier", symbol: "tray", count: items(in: nil).count, id: nil)
-            ForEach(sections) { section in
-                tile(name: section.name, symbol: section.symbol, count: items(in: section).count, id: section.id)
+            tile(name: "À trier", symbol: "tray", count: items(in: nil).count, id: nil, colors: SectionColors.inbox)
+            ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
+                tile(name: section.name, symbol: section.symbol, count: items(in: section).count, id: section.id,
+                     colors: SectionColors.at(index))
                     .contextMenu {
                         Button("Modifier", systemImage: "slider.horizontal.3") {
                             editingSection = SectionEditing(section: section)
@@ -142,24 +143,7 @@ struct InboxView: View {
                         }
                     }
             }
-            Button {
-                editingSection = SectionEditing(section: nil)
-            } label: {
-                VStack(spacing: 6) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 18, weight: .bold))
-                    Text("Nouvelle section")
-                        .font(.manrope(12, .bold, relativeTo: .caption))
-                        .multilineTextAlignment(.center)
-                }
-                .foregroundStyle(Palette.textSecondary)
-                .frame(maxWidth: .infinity, minHeight: 84)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .strokeBorder(Palette.border, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                }
-            }
-            .buttonStyle(.plain)
+            NewSectionTile(title: "Nouvelle section") { editingSection = SectionEditing(section: nil) }
         }
     }
 
@@ -170,49 +154,15 @@ struct InboxView: View {
         return openTasks.filter { $0.sectionId == section.id }
     }
 
-    private func tile(name: String, symbol: String, count: Int, id: UUID?) -> some View {
-        let selected = selectedSection == id
+    private func tile(name: String, symbol: String, count: Int, id: UUID?, colors: TagColors) -> some View {
         let key = id?.uuidString ?? "inbox"
-        let targeted = dropTarget == key
-        return Button {
+        return SectionTile(name: name, symbol: symbol, count: count, colors: colors,
+                           selected: selectedSection == id, targeted: dropTarget == key) {
             withAnimation(.easeInOut(duration: 0.15)) {
                 selectedSection = id
                 expanded = nil
             }
-        } label: {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Image(systemName: symbol)
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(selected ? Palette.accent : Palette.textSecondary)
-                        .frame(width: 26, height: 26)
-                        .background(Palette.control, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                    Spacer(minLength: 2)
-                    Text("\(count)")
-                        .font(.manrope(20, .extrabold, relativeTo: .title3).monospacedDigit())
-                        .foregroundStyle(count > 0 ? Palette.text : Palette.textFaint)
-                }
-                Spacer(minLength: 6)
-                Text(name)
-                    .font(.manrope(12, .bold, relativeTo: .caption))
-                    .foregroundStyle(Color(hex: 0xC9C9D1))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, minHeight: 84, alignment: .leading)
-            .background(selected ? Palette.field : Palette.surface,
-                        in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(selected || targeted ? Palette.accent : Palette.hairline,
-                                  lineWidth: targeted ? 2.5 : selected ? 1.5 : 1)
-            }
-            .scaleEffect(targeted ? 1.04 : 1)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(name), \(count)")
-        .accessibilityAddTraits(selected ? .isSelected : [])
         // Ranger en glissant une tâche sur la tuile.
         .dropDestination(for: TaskDragItem.self) { dropped, _ in
             guard let taskId = dropped.first?.id, let task = openTasks.first(where: { $0.id == taskId }) else { return false }
