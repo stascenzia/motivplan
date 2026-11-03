@@ -43,6 +43,11 @@ targets:
       path: MotivPlan/Info.plist
       properties:
         CFBundleDisplayName: MotivPlan
+        # Siri : le nom se prononce en deux mots.
+        CFBundleSpokenName: Motiv Plan
+        INAlternativeAppNames:
+          - INAlternativeAppName: Motiv Plan
+            INAlternativeAppNamePronunciationHint: motive plane
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}

@@ -111,7 +111,7 @@ struct CaptureScreen: View {
             Text("Aussi sans ouvrir l'app, même hors-ligne")
                 .font(.chip)
                 .foregroundStyle(Palette.textSoft)
-            shortcut("waveform", "« Dis Siri, ajoute une tâche dans MotivPlan »")
+            shortcut("waveform", "« Dis Siri, capture dans MotivPlan »")
             shortcut("square.grid.2x2", "Widget d'accueil ou d'écran verrouillé, bouton Action")
         }
         .card(Palette.surfaceLow, padding: 16)
