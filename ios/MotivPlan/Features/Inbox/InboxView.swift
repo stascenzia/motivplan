@@ -122,7 +122,8 @@ struct InboxView: View {
     private var tiles: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
             tile(name: "À trier", symbol: "tray", count: items(in: nil).count, id: nil, colors: SectionColors.inbox)
-            ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
+            // Les listes de mémoire vivent dans leur onglet (ADR-015) ; leur couleur suit leur place.
+            ForEach(Array(sections.enumerated()).filter { $0.element.kind == .tasks }, id: \.element.id) { index, section in
                 tile(name: section.name, symbol: section.symbol, count: items(in: section).count, id: section.id,
                      colors: SectionColors.at(index))
                     .contextMenu {
@@ -239,7 +240,7 @@ struct InboxView: View {
 
     private func quickActions(_ task: TaskItem, section: TaskSection?) -> some View {
         FlowLayout(spacing: 6) {
-            if section?.isPlannable ?? true {
+            if section?.isDayPlannable ?? true {
                 Button("Aujourd'hui") { schedule(task, on: store.today) }
                     .buttonStyle(PillButtonStyle(prominent: true))
                 Button("Demain") { schedule(task, on: store.tomorrow) }

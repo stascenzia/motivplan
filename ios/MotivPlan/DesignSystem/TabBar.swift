@@ -2,11 +2,12 @@ import Observation
 import SwiftUI
 
 enum AppTab: Hashable {
-    case planning, inbox, calendar
+    case planning, inbox, memory, calendar
 }
 
 /// Barre d'onglets des maquettes, dessinée à la main : flottante, arrondie, avec le bouton
-/// de capture au centre (décision du 2026-10-15). Progrès arrivera en v2.
+/// de capture au centre (décision du 2026-10-15). La to-do à gauche, la mémoire juste à droite du « + »
+/// (ADR-015). Progrès arrivera en v2.
 enum TabBarMetrics {
     static let height: CGFloat = 68
     static let bottomGap: CGFloat = 8
@@ -72,9 +73,11 @@ struct FloatingTabBar: View {
             .accessibilityLabel("Capturer une tâche")
             .accessibilityIdentifier("tab-capture")
             Spacer(minLength: 0)
+            item(.memory, title: "Mémoire", systemImage: "books.vertical")
+            Spacer(minLength: 0)
             item(.calendar, title: "Calendrier", systemImage: "calendar")
         }
-        .padding(.horizontal, 18)
+        .padding(.horizontal, 12)
         .frame(height: TabBarMetrics.height)
         .background(Palette.bar, in: Capsule())
         .overlay { Capsule().strokeBorder(Palette.border, lineWidth: 1) }
@@ -94,9 +97,11 @@ struct FloatingTabBar: View {
                     .foregroundStyle(selected ? Palette.accent : Palette.textTertiary)
                 Text(title)
                     .font(.manrope(11, selected ? .extrabold : .semibold, relativeTo: .caption2))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                     .foregroundStyle(selected ? Palette.text : Palette.textTertiary)
             }
-            .frame(width: 70, height: 56)
+            .frame(width: 62, height: 56)
             .overlay(alignment: .topTrailing) {
                 if badge > 0 {
                     Text("\(badge)")

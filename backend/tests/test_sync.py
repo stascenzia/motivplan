@@ -168,6 +168,32 @@ def test_task_carries_section_tag_and_review(client: TestClient) -> None:
     assert stored["review_note"] == "Tres beau"
 
 
+def test_section_kind_and_task_period_round_trip(client: TestClient) -> None:
+    trips = section(name="Voyages", symbol="airplane", keeps_memory=False, kind="periods")
+    lisbon = task(title="Lisbonne", section_id=trips["id"], start_date="2026-11-20", end_date="2026-11-24")
+    sync(client, sections=[trips], tasks=[lisbon])
+    assert client.get("/sections", headers=AUTH).json()[0]["kind"] == "periods"
+    stored = client.get("/tasks", headers=AUTH).json()[0]
+    assert stored["start_date"] == "2026-11-20"
+    assert stored["end_date"] == "2026-11-24"
+
+
+def test_section_without_kind_stays_null(client: TestClient) -> None:
+    sync(client, sections=[section()])
+    assert client.get("/sections", headers=AUTH).json()[0]["kind"] is None
+
+
+def test_period_ending_before_start_is_refused(client: TestClient) -> None:
+    backwards = task(start_date="2026-11-24", end_date="2026-11-20")
+    response = client.post("/sync", json={"tasks": [backwards]}, headers=AUTH)
+    assert response.status_code == 422
+
+
+def test_unknown_section_kind_is_refused(client: TestClient) -> None:
+    response = client.post("/sync", json={"sections": [section(kind="calendar")]}, headers=AUTH)
+    assert response.status_code == 422
+
+
 def test_unknown_repeat_rule_is_refused(client: TestClient) -> None:
     response = client.post("/sync", json={"sections": [section(repeat="weekly")]}, headers=AUTH)
     assert response.status_code == 422

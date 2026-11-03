@@ -3,7 +3,7 @@ import SwiftData
 import SwiftUI
 import SyncClient
 
-/// Coque de l'app : Planning, Boîte, Calendrier, et la capture au centre de la barre.
+/// Coque de l'app : Planning, Boîte, Mémoire, Calendrier, et la création au centre de la barre.
 ///
 /// Seul l'écran choisi existe : la barre est masquée dès qu'un écran est poussé, on ne change
 /// donc jamais d'onglet au milieu d'une navigation. Le jour affiché est gardé ici.
@@ -21,6 +21,8 @@ struct RootView: View {
     @State private var day = DayKeys.key(for: .now)
     @State private var capture: CaptureRequest?
     @State private var newTask: NewTaskRequest?
+    /// Liste ouverte dans l'onglet Mémoire : le « + » y range la nouvelle entrée.
+    @State private var memorySection: UUID?
 
     var body: some View {
         Group {
@@ -29,6 +31,8 @@ struct RootView: View {
                 DayScreen(day: $day)
             case .inbox:
                 NavigationStack { InboxView() }
+            case .memory:
+                MemoryScreen(selection: $memorySection)
             case .calendar:
                 WeekScreen { opened in
                     day = opened
@@ -80,9 +84,13 @@ struct RootView: View {
         }
     }
 
-    /// Créée dans l'app, une tâche est rangée d'office : la première section ponctuelle planifiable.
+    /// Créée dans l'app, une tâche est rangée d'office (ADR-015) : dans la liste ouverte de l'onglet
+    /// Mémoire, sinon dans la première section ponctuelle planifiable.
     private var defaultSection: UUID? {
-        sections.first { $0.isPlannable && $0.repeatRule == .none }?.id
+        if tab == .memory, let memorySection, sections.contains(where: { $0.id == memorySection }) {
+            return memorySection
+        }
+        return sections.first { $0.isDayPlannable && $0.repeatRule == .none }?.id
     }
 }
 

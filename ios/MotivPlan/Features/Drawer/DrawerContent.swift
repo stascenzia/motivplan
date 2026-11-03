@@ -191,7 +191,7 @@ struct DrawerContent: View {
         if !unsorted.isEmpty {
             result.append(TaskGroup(filter: .unsorted, title: "À trier", symbol: "tray", tasks: unsorted))
         }
-        for section in sections where section.isPlannable {
+        for section in sections where section.isDayPlannable {
             let members = sorted.filter { $0.sectionId == section.id }
             if !members.isEmpty {
                 result.append(TaskGroup(filter: .section(section.id), title: section.name, symbol: section.symbol,

@@ -13,7 +13,7 @@ extension TaskItem {
             orderIndex: orderIndex, isAnchored: isAnchored && anchorTime != nil,
             anchorTime: anchorTime.map(SyncCoding.time(fromMinutes:)), completedAt: completedAt,
             postponeCount: postponeCount, source: sourceRaw, review: reviewRaw, reviewNote: reviewNote,
-            serverUpdatedAt: nil)
+            startDate: startDate, endDate: endDate, serverUpdatedAt: nil)
     }
 
     func apply(_ remote: TaskDTO) {
@@ -36,6 +36,8 @@ extension TaskItem {
         sourceRaw = remote.source
         reviewRaw = remote.review
         reviewNote = remote.reviewNote
+        startDate = remote.startDate
+        endDate = remote.endDate
         needsSync = false
     }
 
@@ -52,7 +54,8 @@ extension TaskSection {
         SectionDTO(
             id: id, createdAt: createdAt, updatedAt: updatedAt, deletedAt: deletedAt, name: name,
             symbol: symbol, sortIndex: sortIndex, defaultDuration: defaultDuration,
-            isPlannable: isPlannable, keepsMemory: keepsMemory, repeat: repeatRaw, serverUpdatedAt: nil)
+            isPlannable: isPlannable, keepsMemory: keepsMemory, repeat: repeatRaw, kind: kindRaw,
+            serverUpdatedAt: nil)
     }
 
     func apply(_ remote: SectionDTO) {
@@ -66,6 +69,7 @@ extension TaskSection {
         isPlannable = remote.isPlannable
         keepsMemory = remote.keepsMemory
         repeatRaw = remote.repeat
+        kindRaw = remote.kind
         needsSync = false
     }
 

@@ -42,6 +42,9 @@ class Task(SyncedMixin, Base):
     source: Mapped[str] = mapped_column(String(16))
     review: Mapped[str | None] = mapped_column(String(16))
     review_note: Mapped[str | None] = mapped_column(Text)
+    # Période (section de type « periods », ADR-015) : premier et dernier jour inclus.
+    start_date: Mapped[date | None] = mapped_column(Date)
+    end_date: Mapped[date | None] = mapped_column(Date)
 
 
 class TaskSection(SyncedMixin, Base):
@@ -56,6 +59,8 @@ class TaskSection(SyncedMixin, Base):
     is_plannable: Mapped[bool] = mapped_column(Boolean)
     keeps_memory: Mapped[bool] = mapped_column(Boolean)
     repeat: Mapped[str] = mapped_column(String(16))
+    # Type de la section (ADR-015) ; NULL pour une section d'avant la v2, déduit par le client.
+    kind: Mapped[str | None] = mapped_column(String(16))
 
 
 class WorkSession(SyncedMixin, Base):

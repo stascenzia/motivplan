@@ -7,6 +7,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 Tag = Literal["urgent", "travail", "medium", "detente"]
 Review = Literal["aime", "bof", "pas_aime"]
 Repeat = Literal["none", "daily", "permanent"]
+Kind = Literal["tasks", "memory", "checklist", "periods"]
 Status = Literal["inbox", "scheduled", "done", "archived"]
 Source = Literal["manual", "siri", "widget"]
 
@@ -37,11 +38,19 @@ class TaskIn(SyncedRecord):
     source: Source
     review: Review | None = None
     review_note: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
 
     @model_validator(mode="after")
     def anchor_needs_time(self) -> Self:
         if self.is_anchored and self.anchor_time is None:
             raise ValueError("anchor_time is required when is_anchored is true")
+        return self
+
+    @model_validator(mode="after")
+    def period_in_order(self) -> Self:
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValueError("end_date must not be before start_date")
         return self
 
 
@@ -57,6 +66,7 @@ class SectionIn(SyncedRecord):
     is_plannable: bool = True
     keeps_memory: bool = False
     repeat: Repeat = "none"
+    kind: Kind | None = None
 
 
 class SectionOut(SectionIn):

@@ -37,7 +37,13 @@ struct TaskDetailView: View {
                     .padding(.horizontal, 4)
                     .padding(.bottom, 4)
 
-                planningCard(today: today)
+                // Les champs suivent le type de la section (ADR-015).
+                let kind = sections.section(of: task)?.kind ?? .tasks
+                if kind == .periods {
+                    periodCard
+                } else if kind != .checklist {
+                    planningCard(today: today)
+                }
                 if task.scheduledDate != nil {
                     durationCard
                     anchorCard
@@ -46,8 +52,12 @@ struct TaskDetailView: View {
                     memoryCard
                 }
                 sectionCard
-                tagCard
-                dueCard(today: today)
+                if kind == .tasks || kind == .memory {
+                    tagCard
+                }
+                if kind == .tasks {
+                    dueCard(today: today)
+                }
                 notesCard
                 footer
             }
@@ -135,6 +145,45 @@ struct TaskDetailView: View {
                 }
             }
         }
+        .card()
+    }
+
+    /// Période : premier et dernier jour, inclus. Enregistrée à chaque changement.
+    private var periodCard: some View {
+        let start = task.startDate.flatMap { DayKeys.date(from: $0) }
+        let end = task.periodEnd.flatMap { DayKeys.date(from: $0) }
+        return VStack(alignment: .leading, spacing: 10) {
+            cardTitle("Dates")
+            if let start {
+                DatePicker("Du", selection: Binding(
+                    get: { start },
+                    set: { value in
+                        let key = DayKeys.key(for: value)
+                        let endKey = max(task.periodEnd ?? key, key)
+                        run { try store.setPeriod(start: key, end: endKey, of: task) }
+                    }
+                ), displayedComponents: .date)
+                DatePicker("Au", selection: Binding(
+                    get: { end ?? start },
+                    set: { value in
+                        run { try store.setPeriod(start: task.startDate, end: DayKeys.key(for: value), of: task) }
+                    }
+                ), in: start..., displayedComponents: .date)
+                if let startKey = task.startDate {
+                    Text("\(PeriodLabel.range(start: startKey, end: task.endDate, today: store.today)) · \(PeriodLabel.relative(start: startKey, end: task.endDate, today: store.today))")
+                        .font(.meta)
+                        .foregroundStyle(Palette.textTertiary)
+                }
+            } else {
+                Button("Choisir les dates") {
+                    run { try store.setPeriod(start: store.today, end: store.today, of: task) }
+                }
+                .buttonStyle(PillButtonStyle(prominent: true))
+            }
+        }
+        .font(.rowTitle)
+        .foregroundStyle(Palette.text)
+        .tint(Palette.accent)
         .card()
     }
 

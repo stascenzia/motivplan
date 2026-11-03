@@ -2,7 +2,8 @@ import Foundation
 import SwiftData
 import TimelineEngine
 
-/// Schéma versionné dès le premier commit (plan, principes d'architecture).
+/// Schéma versionné dès le premier commit (plan, principes d'architecture). Figé depuis la v2 :
+/// il décrit les stores déjà installés et sert de point de départ à la migration (`SchemaV2`).
 /// Champs alignés sur le backend (`backend/app/models.py`). Les enums sont stockés en chaînes :
 /// les prédicats SwiftData sur des enums sont fragiles, les chaînes passent partout.
 public enum SchemaV1: VersionedSchema {
@@ -134,95 +135,4 @@ public enum SchemaV1: VersionedSchema {
             self.completedAt = nil
         }
     }
-}
-
-public enum MotivPlanMigrationPlan: SchemaMigrationPlan {
-    public static var schemas: [any VersionedSchema.Type] { [SchemaV1.self] }
-    public static var stages: [MigrationStage] { [] }
-}
-
-public typealias TaskItem = SchemaV1.TaskItem
-public typealias WorkSession = SchemaV1.WorkSession
-public typealias TaskSection = SchemaV1.TaskSection
-
-extension TaskSection {
-    public var repeatRule: SectionRepeat {
-        SectionRepeat(rawValue: repeatRaw) ?? .none
-    }
-
-    /// Sections non supprimées, dans l'ordre choisi. Pour `@Query`.
-    public static var orderedDescriptor: FetchDescriptor<TaskSection> {
-        FetchDescriptor(predicate: #Predicate { $0.deletedAt == nil },
-                        sortBy: [SortDescriptor(\.sortIndex)])
-    }
-}
-
-extension TaskItem {
-    public var status: TaskStatus {
-        TaskStatus(rawValue: statusRaw) ?? .inbox
-    }
-
-    public var tag: TaskTag? {
-        tagRaw.flatMap(TaskTag.init(rawValue:))
-    }
-
-    public var review: Review? {
-        reviewRaw.flatMap(Review.init(rawValue:))
-    }
-
-    public var source: TaskSource {
-        TaskSource(rawValue: sourceRaw) ?? .manual
-    }
-
-    public var isDone: Bool { status == .done }
-
-    /// Échéance dépassée : signalée sobrement, jamais en rouge (principe 2).
-    public func isOverdue(today: DayKey) -> Bool {
-        guard let dueDate, status != .done else { return false }
-        return dueDate < today
-    }
-
-    /// Vue moteur de la tâche, si elle a une place dans un jour.
-    public var timelineItem: TimelineItem? {
-        guard let orderIndex else { return nil }
-        return TimelineItem(id: id, orderIndex: orderIndex,
-                            durationMin: durationMin ?? Durations.fallback,
-                            anchorStart: isAnchored ? anchorTime : nil)
-    }
-
-    /// Boîte de réception, la capture la plus récente en tête. Pour `@Query`.
-    public static var inboxDescriptor: FetchDescriptor<TaskItem> {
-        let inbox = TaskStatus.inbox.rawValue
-        return FetchDescriptor(
-            predicate: #Predicate { $0.deletedAt == nil && $0.statusRaw == inbox },
-            sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
-    }
-
-    /// À faire, en boîte ou posées sur un jour sans être faites : une tuile de section les compte
-    /// toutes (une quotidienne posée seule reste visible dans sa section).
-    public static var openDescriptor: FetchDescriptor<TaskItem> {
-        let inbox = TaskStatus.inbox.rawValue
-        let scheduled = TaskStatus.scheduled.rawValue
-        return FetchDescriptor(
-            predicate: #Predicate { $0.deletedAt == nil && ($0.statusRaw == inbox || $0.statusRaw == scheduled) },
-            sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
-    }
-
-    /// Vue moteur pour le report automatique.
-    public var rolloverTask: RolloverTask {
-        RolloverTask(id: id, status: status, scheduledDate: scheduledDate, orderIndex: orderIndex,
-                     anchorStart: isAnchored ? anchorTime : nil, dueDate: dueDate,
-                     postponeCount: postponeCount)
-    }
-
-    /// Tâches posées sur un jour (statut filtré ensuite : `isOnDay`), dans l'ordre stocké.
-    public static func dayDescriptor(_ day: DayKey) -> FetchDescriptor<TaskItem> {
-        let target: String? = day
-        return FetchDescriptor(
-            predicate: #Predicate { $0.deletedAt == nil && $0.scheduledDate == target },
-            sortBy: [SortDescriptor(\.orderIndex)])
-    }
-
-    /// Posée sur un jour, faite ou non : une tâche faite garde sa place (cahier §4.4).
-    public var isOnDay: Bool { status == .scheduled || status == .done }
 }

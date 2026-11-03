@@ -36,7 +36,7 @@ struct TaskActionsMenu: View {
 
         Button("Terminer", systemImage: "checkmark.circle") { finish(task) }
 
-        if section?.isPlannable ?? true {
+        if section?.isDayPlannable ?? true {
             Menu {
                 Button("Aujourd'hui", systemImage: "sun.max") { run { try store.schedule(task, on: store.today) } }
                 Button("Demain", systemImage: "sunrise") { run { try store.schedule(task, on: store.tomorrow) } }

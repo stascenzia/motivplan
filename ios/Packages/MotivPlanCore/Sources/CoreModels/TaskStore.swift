@@ -10,6 +10,7 @@ public struct TaskStore {
     public enum StoreError: Error, Equatable {
         case emptyTitle
         case durationTooShort
+        case periodEndsBeforeStart
     }
 
     public let context: ModelContext
@@ -56,11 +57,27 @@ public struct TaskStore {
         touch(task)
         let section = try sections().first { $0.id == draft.sectionId }
         try setSection(section, of: task)
-        if let day = draft.scheduledDate, section?.isPlannable ?? true, task.scheduledDate != day {
+        if section?.kind == .periods, let start = draft.startDate {
+            try setPeriod(start: start, end: draft.endDate, of: task)
+        } else if let day = draft.scheduledDate, section?.isDayPlannable ?? true, task.scheduledDate != day {
             try schedule(task, on: day)
         }
         try save()
         return task
+    }
+
+    /// Dates d'une période (voyage, vacances), bornes incluses. Sans fin, la période dure un jour ;
+    /// `start` à `nil` retire les dates. Une période ne reste jamais posée dans la journée.
+    public func setPeriod(start: DayKey?, end: DayKey?, of task: TaskItem) throws {
+        let end = start == nil ? nil : (end ?? start)
+        if let start, let end, end < start { throw StoreError.periodEndsBeforeStart }
+        guard start != task.startDate || end != task.endDate else { return }
+        task.startDate = start
+        task.endDate = end
+        if task.scheduledDate != nil {
+            try unschedule(task)
+        }
+        try commit(task)
     }
 
     public func setTitle(_ title: String, of task: TaskItem) throws {
@@ -92,7 +109,7 @@ public struct TaskStore {
         task.sectionId = section?.id
         touch(task)
         if let section {
-            if !section.isPlannable, task.scheduledDate != nil {
+            if !section.isDayPlannable, task.scheduledDate != nil {
                 try unschedule(task)
             } else if section.repeatRule == .daily, task.scheduledDate == nil, !task.isDone {
                 try schedule(task, on: today)
@@ -341,6 +358,11 @@ public struct TaskStore {
             guard let day = task.scheduledDate else { return false }
             return day >= start && day <= end && (task.status == .scheduled || task.status == .done)
         }
+    }
+
+    /// Périodes qui touchent l'intervalle (calendrier), de la plus proche à la plus lointaine.
+    public func periods(from start: DayKey, through end: DayKey) throws -> [TaskItem] {
+        try context.fetch(TaskItem.periodDescriptor).filter { $0.overlaps(from: start, through: end) }
     }
 
     // MARK: Interne

@@ -14,9 +14,13 @@ public struct TaskDraft: Sendable, Equatable {
     public var scheduledDate: DayKey?
     /// `nil` : durée suggérée par la section.
     public var durationMin: Minutes?
+    /// Période (section de type `periods`), bornes incluses.
+    public var startDate: DayKey?
+    public var endDate: DayKey?
 
     public init(title: String = "", notes: String = "", sectionId: UUID? = nil, tag: TaskTag? = nil,
-                dueDate: DayKey? = nil, scheduledDate: DayKey? = nil, durationMin: Minutes? = nil) {
+                dueDate: DayKey? = nil, scheduledDate: DayKey? = nil, durationMin: Minutes? = nil,
+                startDate: DayKey? = nil, endDate: DayKey? = nil) {
         self.title = title
         self.notes = notes
         self.sectionId = sectionId
@@ -24,5 +28,7 @@ public struct TaskDraft: Sendable, Equatable {
         self.dueDate = dueDate
         self.scheduledDate = scheduledDate
         self.durationMin = durationMin
+        self.startDate = startDate
+        self.endDate = endDate
     }
 }

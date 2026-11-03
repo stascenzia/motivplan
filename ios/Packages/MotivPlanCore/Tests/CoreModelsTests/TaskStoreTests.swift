@@ -394,6 +394,87 @@ struct TaskStoreTests {
         #expect(try store.context.fetch(TaskItem.openDescriptor).isEmpty)
     }
 
+    @Test("Le type d'une section impose ses règles ; changer de type sort ses tâches de la journée")
+    func sectionKindRules() throws {
+        let films = try store.createSection(name: "Films", isPlannable: true, repeatRule: .daily, kind: .memory)
+        #expect(films.kind == .memory)
+        #expect(!films.isPlannable)
+        #expect(films.keepsMemory)
+        #expect(films.repeatRule == .none)
+        #expect(!films.isDayPlannable)
+
+        let outings = try store.createSection(name: "Sorties")
+        let museum = try store.create(TaskDraft(title: "Musée", sectionId: outings.id, scheduledDate: store.today))
+        #expect(museum.status == .scheduled)
+        try store.updateSection(outings, name: "Sorties", symbol: "figure.walk", defaultDuration: nil,
+                                isPlannable: true, keepsMemory: false, repeatRule: .none, kind: .periods)
+        #expect(outings.kind == .periods)
+        #expect(museum.status == .inbox)
+        #expect(museum.scheduledDate == nil)
+    }
+
+    @Test("Ranger dans une section de mémoire retire la tâche de la journée")
+    func fileIntoMemoryUnschedules() throws {
+        let films = try store.createSection(name: "Films", kind: .memory)
+        let task = try store.capture("Dune", source: .siri)
+        try store.schedule(task, on: store.today)
+        try store.setSection(films, of: task)
+        #expect(task.scheduledDate == nil)
+        #expect(task.status == .inbox)
+    }
+
+    @Test("Un élément de mémoire planifié par son bouton reste dans la journée, puis revient noté")
+    func plannedMemoryItem() throws {
+        let films = try store.createSection(name: "Films", kind: .memory)
+        let dune = try store.create(TaskDraft(title: "Dune", sectionId: films.id))
+        try store.schedule(dune, on: store.today)
+        #expect(try store.tasks(on: store.today).map(\.id) == [dune.id])
+        try store.complete(dune, review: .aime, note: "Grand écran")
+        #expect(try store.memory(of: films).map(\.id) == [dune.id])
+    }
+
+    @Test("Vider les cochés d'une liste supprime seulement les articles cochés")
+    func clearChecked() throws {
+        let shopping = try store.createSection(name: "Courses", kind: .checklist)
+        let milk = try store.create(TaskDraft(title: "Lait", sectionId: shopping.id))
+        let coffee = try store.create(TaskDraft(title: "Café", sectionId: shopping.id))
+        try store.toggleDone(milk)
+        #expect(try store.clearChecked(in: shopping) == 1)
+        #expect(milk.deletedAt != nil)
+        #expect(milk.needsSync)
+        #expect(try store.tasks(in: shopping).map(\.id) == [coffee.id])
+        #expect(try store.clearChecked(in: shopping) == 0)
+    }
+
+    @Test("Une période se crée avec ses dates, jamais dans la journée, et se retrouve par intervalle")
+    func periods() throws {
+        let trips = try store.createSection(name: "Voyages", kind: .periods)
+        let lisbon = try store.create(TaskDraft(title: "Lisbonne", sectionId: trips.id, scheduledDate: store.today,
+                                                startDate: "2026-11-20", endDate: "2026-11-24"))
+        #expect(lisbon.scheduledDate == nil)
+        #expect(lisbon.startDate == "2026-11-20")
+        #expect(lisbon.endDate == "2026-11-24")
+        #expect(try store.periods(from: "2026-11-23", through: "2026-11-29").map(\.id) == [lisbon.id])
+        #expect(try store.periods(from: "2026-11-25", through: "2026-11-30").isEmpty)
+
+        try store.setPeriod(start: "2026-12-01", end: nil, of: lisbon)
+        #expect(lisbon.endDate == "2026-12-01")
+        #expect(throws: TaskStore.StoreError.periodEndsBeforeStart) {
+            try store.setPeriod(start: "2026-12-05", end: "2026-12-01", of: lisbon)
+        }
+        try store.setPeriod(start: nil, end: "2026-12-09", of: lisbon)
+        #expect(lisbon.startDate == nil)
+        #expect(lisbon.endDate == nil)
+    }
+
+    @Test("Une section d'avant la v2 déduit son type de ses règles et de son nom")
+    func inferredKind() {
+        #expect(SectionKind.inferred(name: "Recettes", isPlannable: false, keepsMemory: true) == .memory)
+        #expect(SectionKind.inferred(name: "Courses", isPlannable: false, keepsMemory: false) == .checklist)
+        #expect(SectionKind.inferred(name: "Trips", isPlannable: true, keepsMemory: false) == .periods)
+        #expect(SectionKind.inferred(name: "Ponctuelles", isPlannable: true, keepsMemory: false) == .tasks)
+    }
+
     @Test("Une édition sans changement ne touche pas updatedAt")
     func noOpEdit() throws {
         let task = try store.capture("Lire", source: .manual)

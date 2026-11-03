@@ -84,42 +84,61 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(element(app, "Finir le rapport trimestriel").waitForExistence(timeout: 15))
     }
 
-    /// Sections et seconde mémoire (ADR-014) : tuiles de la boîte, puis écran de section.
+    /// Sections à faire (ADR-014) : tuiles de la boîte, écran de section, éditeur. Une quotidienne
+    /// posée seule reste comptée dans sa tuile.
     @MainActor
     func testSectionScreens() throws {
         let app = launch()
         app.buttons["tab-Boîte"].tap()
 
-        XCTAssertTrue(element(app, "Quotidiennes").waitForExistence(timeout: 30))
-        let films = element(app, "Films et séries")
-        scrollIntoView(app, films)
-        films.tap()
-        XCTAssertTrue(element(app, "The Bear").waitForExistence(timeout: 15))
-        snapshot(app, "31-boite-tuile-films")
+        let daily = element(app, "Quotidiennes")
+        XCTAssertTrue(daily.waitForExistence(timeout: 30))
+        daily.tap()
+        XCTAssertTrue(element(app, "Vider la litière de Stella").waitForExistence(timeout: 15))
+        snapshot(app, "31-boite-tuile-quotidiennes")
 
-        let open = app.buttons["Section et mémoire"]
+        element(app, "Récurrentes").tap()
+        let laundry = element(app, "Faire une lessive")
+        scrollIntoView(app, laundry)
+        XCTAssertTrue(laundry.waitForExistence(timeout: 15))
+        snapshot(app, "32-boite-tuile-recurrentes")
+
+        let open = app.buttons["Voir la section"]
         scrollIntoView(app, open)
         open.tap()
         XCTAssertTrue(app.buttons["Modifier"].waitForExistence(timeout: 15))
-        snapshot(app, "32-section-a-voir")
-
-        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Mémoire")).firstMatch.tap()
-        XCTAssertTrue(element(app, "Past Lives").waitForExistence(timeout: 15))
-        snapshot(app, "33-section-memoire")
+        snapshot(app, "33-section")
 
         app.buttons["Modifier"].tap()
         XCTAssertTrue(app.navigationBars["Section"].waitForExistence(timeout: 15))
         snapshot(app, "34-editeur-section")
         app.buttons["Annuler"].tap()
+    }
 
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        let recurring = element(app, "Récurrentes")
-        XCTAssertTrue(recurring.waitForExistence(timeout: 15))
-        recurring.tap()
-        let laundry = element(app, "Faire une lessive")
-        scrollIntoView(app, laundry)
-        XCTAssertTrue(laundry.waitForExistence(timeout: 15))
-        snapshot(app, "35-boite-tuile-recurrentes")
+    /// Onglet Mémoire (ADR-015) : liste à cocher, envies avec avis, périodes.
+    @MainActor
+    func testMemoryScreens() throws {
+        let app = launch()
+        app.buttons["tab-Mémoire"].tap()
+
+        XCTAssertTrue(element(app, "Lait d'avoine").waitForExistence(timeout: 30))
+        snapshot(app, "51-memoire-courses")
+
+        element(app, "Films et séries").tap()
+        XCTAssertTrue(element(app, "The Bear").waitForExistence(timeout: 15))
+        snapshot(app, "52-memoire-films")
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Mémoire ·")).firstMatch.tap()
+        XCTAssertTrue(element(app, "Past Lives").waitForExistence(timeout: 15))
+        snapshot(app, "53-memoire-avis")
+
+        element(app, "Voyages").tap()
+        XCTAssertTrue(element(app, "Lisbonne").waitForExistence(timeout: 15))
+        snapshot(app, "54-memoire-voyages")
+
+        app.buttons["memory-new-period"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["new-task-title"].waitForExistence(timeout: 15))
+        snapshot(app, "55-nouvelle-periode")
+        app.buttons["Annuler"].tap()
     }
 
     /// Le bouton « + » ouvre la création complète ; posée aujourd'hui, la tâche arrive dans la frise.

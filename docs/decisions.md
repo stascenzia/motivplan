@@ -166,6 +166,25 @@ Une entrée par décision structurante. Format court : contexte, décision, cons
 
 ---
 
+## ADR-015 — Deux espaces : la to-do et la Mémoire ; périodes datées
+
+**Date** : 2026-11-03 · **Statut** : figée
+
+**Contexte** : après une semaine de tests sur l'iPhone (`docs/retours-v1.md`), l'utilisateur voit deux applications en une : une to-do (boîte, journée, calendrier) et une mémoire (films, recettes, courses, voyages). Les mélanger dans les mêmes tuiles de la boîte brouille les deux. Les voyages ont besoin d'une date de début et de fin, et ne doivent pas apparaître dans la journée (pas d'heure, pas de conflit), mais doivent apparaître dans le calendrier. Les courses sont une liste qu'on coche en magasin.
+
+**Décision** :
+- Chaque section a un **type** : `tasks` (à faire, règles d'ADR-014), `memory` (envies avec avis : films, recettes), `checklist` (liste à cocher : courses), `periods` (périodes datées : voyages). Le type impose ses règles : hors `tasks`, une section n'est ni planifiable ni répétée, et seul `memory` garde la mémoire avec avis.
+- Les sections `tasks` restent dans la boîte de réception. Les trois autres types vivent dans un nouvel onglet **Mémoire**, juste à droite du « + » dans la barre d'onglets.
+- **Capture** : la voix et le widget arrivent toujours dans « À trier » (ADR-014). Ce qui est créé dans l'app (le « + », le champ d'une liste de la Mémoire) est rangé directement dans sa section. Le « + » ouvre une création complète (section, jour, durée, étiquette, échéance, notes), et ses champs suivent le type de la section choisie.
+- **Envie planifiée** : un élément `memory` peut être posé sur un jour par son bouton « Planifier ». Coché dans la journée, il demande l'avis, puis rejoint la mémoire de sa section.
+- **Liste à cocher** : cocher marque l'article comme fait ; « Vider les cochés » le supprime (tombstone).
+- **Période** : deux clés-jour, `startDate` et `endDate`, bornes incluses. Une période n'a ni heure ni durée et ne se pose jamais dans la journée. Le calendrier l'affiche en bandeau sur ses jours, en vue Semaine et dans une nouvelle vue **Mois**, pour voir à combien de semaines tombe un voyage.
+- **Sections d'avant la v2** : leur type n'est pas enregistré (`kind` nul). Il se déduit de leurs règles : mémoire → `memory`, non planifiable → `checklist`, nom évoquant un voyage (« voyage », « trip », « vacances », « séjour ») → `periods`, sinon `tasks`. Le type se change dans l'éditeur de section.
+
+**Conséquences** : schéma SwiftData `SchemaV2` (champs facultatifs `kindRaw`, `startDate`, `endDate`), avec une migration légère depuis `SchemaV1`, testée sur un store écrit sur disque. Backend : colonnes `sections.kind`, `tasks.start_date`, `tasks.end_date` (migration Alembic 0002), dans `POST /sync`. Une période dont la fin précède le début est refusée. Une section « Voyages » est fournie aux nouvelles installations. Remplace la mention « vue mois en v2 » du plan.
+
+---
+
 ## Journal du spike Siri hors-ligne (lot 0)
 
 À remplir après le test sur appareil : modèle d'iPhone, version d'iOS, résultat verrouillé, résultat mode avion (phrase puis dictée), titres français qui ont été filtrés par Siri.

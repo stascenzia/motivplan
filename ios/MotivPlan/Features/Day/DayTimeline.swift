@@ -17,6 +17,9 @@ struct DayTimeline: View {
 
     @Environment(\.modelContext) private var context
     @Query private var rows: [TaskItem]
+    @Query(TaskSection.orderedDescriptor) private var sections: [TaskSection]
+    /// Élément de mémoire planifié (film, recette) qu'on vient de finir : avis avant de cocher.
+    @State private var reviewing: TaskItem?
     @State private var drag: DragState?
     @State private var frames: [UUID: CGRect] = [:]
     @State private var viewportHeight: CGFloat = 0
@@ -96,6 +99,14 @@ struct DayTimeline: View {
             showConfetti = true
             try? await Task.sleep(for: .seconds(3))
             showConfetti = false
+        }
+        .sheet(item: $reviewing) { task in
+            ReviewSheet(task: task) { review, note in
+                withAnimation(.spring(duration: 0.35)) {
+                    run { try store.complete(task, review: review, note: note) }
+                }
+                celebrateIfDone()
+            }
         }
         .alert("Action impossible", isPresented: Binding(
             get: { errorMessage != nil },
@@ -401,10 +412,19 @@ struct DayTimeline: View {
 
     private func toggle(_ task: TaskItem) {
         let wasDone = task.isDone
+        if !wasDone, sections.section(of: task)?.keepsMemory == true {
+            reviewing = task
+            return
+        }
         withAnimation(.spring(duration: 0.35)) {
             run { try store.toggleDone(task) }
         }
         guard !wasDone else { return }
+        celebrateIfDone()
+    }
+
+    /// Haptique de réussite ; confettis si toute la journée est faite.
+    private func celebrateIfDone() {
         doneCount += 1
         let dayTasks = rows.filter(\.isOnDay)
         if !dayTasks.isEmpty, dayTasks.allSatisfy(\.isDone) { celebration += 1 }

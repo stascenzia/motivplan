@@ -28,6 +28,9 @@ public struct TaskDTO: Codable, Sendable, Equatable {
     public var source: String
     public var review: String?
     public var reviewNote: String?
+    /// Période : `yyyy-MM-dd`, bornes incluses.
+    public var startDate: String?
+    public var endDate: String?
     /// Présent seulement dans les réponses.
     public var serverUpdatedAt: Date?
 }
@@ -45,6 +48,8 @@ public struct SectionDTO: Codable, Sendable, Equatable {
     public var isPlannable: Bool
     public var keepsMemory: Bool
     public var `repeat`: String
+    /// `tasks`, `memory`, `checklist`, `periods` ; absent pour une section d'avant la v2.
+    public var kind: String?
     public var serverUpdatedAt: Date?
 }
 

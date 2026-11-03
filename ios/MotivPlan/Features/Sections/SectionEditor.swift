@@ -2,10 +2,12 @@ import CoreModels
 import SwiftUI
 import TimelineEngine
 
-/// Création ou modification d'une section et de ses règles (ADR-014).
+/// Création ou modification d'une section, de son type (ADR-015) et de ses règles (ADR-014).
 struct SectionEditor: View {
     /// `nil` : nouvelle section.
     let section: TaskSection?
+    /// Type proposé pour une nouvelle section : « À faire » depuis la boîte, mémoire depuis l'onglet Mémoire.
+    var defaultKind: SectionKind = .tasks
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -14,6 +16,7 @@ struct SectionEditor: View {
     @State private var isPlannable = true
     @State private var keepsMemory = false
     @State private var repeatRule: SectionRepeat = .none
+    @State private var kind: SectionKind = .tasks
     @State private var hasDuration = false
     @State private var duration: Minutes = 30
     @State private var confirmDelete = false
@@ -23,6 +26,7 @@ struct SectionEditor: View {
         "folder", "checkmark.circle", "sunrise", "arrow.trianglehead.2.clockwise", "cart", "fork.knife",
         "film", "tv", "book", "music.note", "gamecontroller", "figure.run",
         "house", "briefcase", "gift", "airplane", "heart", "lightbulb",
+        "suitcase", "tent", "map", "beach.umbrella", "wineglass", "basket",
     ]
 
     private var store: TaskStore { TaskStore(context: context) }
@@ -53,20 +57,30 @@ struct SectionEditor: View {
                     }
 
                     Section {
-                        Toggle("Planifiable", isOn: $isPlannable)
-                        if isPlannable {
-                            Picker("Répétition", selection: $repeatRule) {
-                                ForEach(SectionRepeat.allCases, id: \.self) { Text($0.label).tag($0) }
-                            }
+                        Picker("Type", selection: $kind) {
+                            ForEach(SectionKind.allCases, id: \.self) { Text($0.label).tag($0) }
                         }
-                        Toggle("Garder en mémoire", isOn: $keepsMemory)
-                    } header: {
-                        Text("Règles")
                     } footer: {
-                        Text(rulesExplanation)
+                        Text(kind.explanation)
                     }
 
-                    if isPlannable {
+                    if kind == .tasks {
+                        Section {
+                            Toggle("Planifiable", isOn: $isPlannable)
+                            if isPlannable {
+                                Picker("Répétition", selection: $repeatRule) {
+                                    ForEach(SectionRepeat.allCases, id: \.self) { Text($0.label).tag($0) }
+                                }
+                            }
+                            Toggle("Garder en mémoire", isOn: $keepsMemory)
+                        } header: {
+                            Text("Règles")
+                        } footer: {
+                            Text(rulesExplanation)
+                        }
+                    }
+
+                    if showsDuration {
                         Section {
                             Toggle("Durée suggérée", isOn: $hasDuration)
                             if hasDuration {
@@ -127,8 +141,17 @@ struct SectionEditor: View {
         return lines.joined(separator: " ")
     }
 
+    /// Durée suggérée : pour une section posée dans la journée, ou une envie qu'on planifie (recette).
+    private var showsDuration: Bool {
+        kind == .tasks ? isPlannable : kind == .memory
+    }
+
     private func load() {
-        guard let section else { return }
+        guard let section else {
+            kind = defaultKind
+            return
+        }
+        kind = section.kind
         name = section.name
         symbol = section.symbol
         isPlannable = section.isPlannable
@@ -140,14 +163,16 @@ struct SectionEditor: View {
 
     private func save() {
         let rule = isPlannable ? repeatRule : .none
-        let minutes = isPlannable && hasDuration ? duration : nil
+        let minutes = showsDuration && hasDuration ? duration : nil
         let saved = run {
             if let section {
                 try store.updateSection(section, name: name, symbol: symbol, defaultDuration: minutes,
-                                        isPlannable: isPlannable, keepsMemory: keepsMemory, repeatRule: rule)
+                                        isPlannable: isPlannable, keepsMemory: keepsMemory, repeatRule: rule,
+                                        kind: kind)
             } else {
                 try store.createSection(name: name, symbol: symbol, defaultDuration: minutes,
-                                        isPlannable: isPlannable, keepsMemory: keepsMemory, repeatRule: rule)
+                                        isPlannable: isPlannable, keepsMemory: keepsMemory, repeatRule: rule,
+                                        kind: kind)
             }
         }
         if saved { dismiss() }

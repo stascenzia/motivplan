@@ -57,9 +57,19 @@ enum SampleData {
             _ = try add("Envoyer le courrier", to: "Ponctuelles")
             try store.toggleDone(bed)
 
-            // Hors planning, avec mémoire.
+            // Mémoire (ADR-015) : liste à cocher, envies avec avis, périodes.
             _ = try add("Lait d'avoine", to: "Courses")
-            _ = try add("Café en grains", to: "Courses")
+            let coffee = try add("Café en grains", to: "Courses")
+            try store.toggleDone(coffee)
+            _ = try add("Tomates cerises", to: "Courses")
+            if let start = DayKeys.adding(17, to: today), let end = DayKeys.adding(21, to: today) {
+                let lisbon = try add("Lisbonne", to: "Voyages")
+                try store.setPeriod(start: start, end: end, of: lisbon)
+            }
+            if let start = DayKeys.adding(4, to: today), let end = DayKeys.adding(5, to: today) {
+                let sea = try add("Week-end à la mer", to: "Voyages")
+                try store.setPeriod(start: start, end: end, of: sea)
+            }
             _ = try add("The Bear, saison 3", to: "Films et séries", tag: .detente)
             _ = try add("Dune, deuxième partie", to: "Films et séries", tag: .detente)
             let seen = try add("Past Lives", to: "Films et séries")

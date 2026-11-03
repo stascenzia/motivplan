@@ -14,7 +14,7 @@ extension TaskStore {
                 context.insert(TaskSection(
                     name: preset.name, symbol: preset.symbol, sortIndex: index * OrderIndex.step,
                     defaultDuration: preset.defaultDuration, isPlannable: preset.isPlannable,
-                    keepsMemory: preset.keepsMemory, repeatRule: preset.repeatRule, now: now()))
+                    keepsMemory: preset.keepsMemory, repeatRule: preset.repeatRule, kind: preset.kind, now: now()))
             }
             try save()
         }
@@ -32,44 +32,77 @@ extension TaskStore {
         return try context.fetch(descriptor).first
     }
 
+    /// Crée une section. Hors du type « À faire », les règles suivent le type (ADR-015) : pas de
+    /// journée ni de répétition, et la mémoire pour le seul type `memory`.
     @discardableResult
     public func createSection(name: String, symbol: String = "folder", defaultDuration: Minutes? = nil,
                               isPlannable: Bool = true, keepsMemory: Bool = false,
-                              repeatRule: SectionRepeat = .none) throws -> TaskSection {
+                              repeatRule: SectionRepeat = .none, kind: SectionKind = .tasks) throws -> TaskSection {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw StoreError.emptyTitle }
+        let rules = Self.rules(kind: kind, isPlannable: isPlannable, keepsMemory: keepsMemory, repeatRule: repeatRule)
         let last = try sections().map(\.sortIndex).max()
         let section = TaskSection(
             name: trimmed, symbol: symbol, sortIndex: (last ?? 0) + OrderIndex.step,
-            defaultDuration: defaultDuration, isPlannable: isPlannable, keepsMemory: keepsMemory,
-            repeatRule: repeatRule, now: now())
+            defaultDuration: defaultDuration, isPlannable: rules.isPlannable, keepsMemory: rules.keepsMemory,
+            repeatRule: rules.repeatRule, kind: kind, now: now())
         context.insert(section)
         try save()
         return section
     }
 
-    /// Modifie une section. Changer ses règles ne déplace pas les tâches existantes,
-    /// sauf une section devenue non planifiable : ses tâches quittent la journée.
+    /// Modifie une section. Changer ses règles ne déplace pas les tâches existantes, sauf une section
+    /// qui ne se pose plus dans la journée : ses tâches non faites retournent dans la section.
+    /// `kind` à `nil` garde le type actuel.
     public func updateSection(_ section: TaskSection, name: String, symbol: String,
                               defaultDuration: Minutes?, isPlannable: Bool, keepsMemory: Bool,
-                              repeatRule: SectionRepeat) throws {
+                              repeatRule: SectionRepeat, kind: SectionKind? = nil) throws {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw StoreError.emptyTitle }
         if let defaultDuration, defaultDuration < Durations.minimum { throw StoreError.durationTooShort }
-        let becameUnplannable = section.isPlannable && !isPlannable
+        let kind = kind ?? section.kind
+        let rules = Self.rules(kind: kind, isPlannable: isPlannable, keepsMemory: keepsMemory, repeatRule: repeatRule)
+        let wasDayPlannable = section.isDayPlannable
+        let kindChanged = kind != section.kind
         section.name = trimmed
         section.symbol = symbol
         section.defaultDuration = defaultDuration
-        section.isPlannable = isPlannable
-        section.keepsMemory = keepsMemory
-        section.repeatRaw = repeatRule.rawValue
+        section.isPlannable = rules.isPlannable
+        section.keepsMemory = rules.keepsMemory
+        section.repeatRaw = rules.repeatRule.rawValue
+        section.kindRaw = kind.rawValue
         touch(section)
-        if becameUnplannable {
+        if wasDayPlannable && !section.isDayPlannable && (kindChanged || !rules.isPlannable) {
             for task in try tasks(in: section) where task.scheduledDate != nil && !task.isDone {
                 try unschedule(task)
             }
         }
         try save()
+    }
+
+    /// Règles imposées par le type d'une section.
+    static func rules(kind: SectionKind, isPlannable: Bool, keepsMemory: Bool,
+                      repeatRule: SectionRepeat) -> (isPlannable: Bool, keepsMemory: Bool, repeatRule: SectionRepeat) {
+        switch kind {
+        case .tasks: (isPlannable, keepsMemory, repeatRule)
+        case .memory: (false, true, .none)
+        case .checklist, .periods: (false, false, .none)
+        }
+    }
+
+    /// Vide les articles cochés d'une liste (courses) : suppression par tombstone.
+    /// - Returns: le nombre d'articles retirés.
+    @discardableResult
+    public func clearChecked(in section: TaskSection) throws -> Int {
+        let checked = try memory(of: section)
+        guard !checked.isEmpty else { return 0 }
+        let stamp = now()
+        for item in checked {
+            item.deletedAt = stamp
+            touch(item)
+        }
+        try save()
+        return checked.count
     }
 
     /// Supprime une section ; ses tâches retournent dans « À trier », rien n'est perdu.
