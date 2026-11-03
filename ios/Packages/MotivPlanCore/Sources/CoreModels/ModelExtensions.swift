@@ -103,6 +103,12 @@ extension TaskItem {
         return startDate <= end && periodEnd >= start
     }
 
+    /// Tout ce qui est rangé dans une section, fait ou non, le plus récent en tête (onglet Mémoire).
+    public static var sectionedDescriptor: FetchDescriptor<TaskItem> {
+        FetchDescriptor(predicate: #Predicate { $0.deletedAt == nil && $0.sectionId != nil },
+                        sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+    }
+
     /// Éléments datés d'une période, du plus proche au plus lointain. Pour `@Query`.
     public static var periodDescriptor: FetchDescriptor<TaskItem> {
         FetchDescriptor(predicate: #Predicate { $0.deletedAt == nil && $0.startDate != nil },

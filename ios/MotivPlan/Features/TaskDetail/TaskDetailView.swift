@@ -170,7 +170,7 @@ struct TaskDetailView: View {
                     }
                 ), in: start..., displayedComponents: .date)
                 if let startKey = task.startDate {
-                    Text("\(PeriodLabel.range(start: startKey, end: task.endDate, today: store.today)) · \(PeriodLabel.relative(start: startKey, end: task.endDate, today: store.today))")
+                    Text(PeriodLabel.summary(start: startKey, end: task.endDate, today: store.today))
                         .font(.meta)
                         .foregroundStyle(Palette.textTertiary)
                 }

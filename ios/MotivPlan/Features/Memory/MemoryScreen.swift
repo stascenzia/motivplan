@@ -12,9 +12,7 @@ struct MemoryScreen: View {
 
     @Environment(\.modelContext) private var context
     @Query(TaskSection.orderedDescriptor) private var sections: [TaskSection]
-    @Query(filter: #Predicate<TaskItem> { $0.deletedAt == nil && $0.sectionId != nil },
-           sort: [SortDescriptor(\.createdAt, order: .reverse)])
-    private var items: [TaskItem]
+    @Query(TaskItem.sectionedDescriptor) private var items: [TaskItem]
     @FocusState private var captureFocused: Bool
     @State private var showMemory = false
     @State private var reviewing: TaskItem?
@@ -346,7 +344,7 @@ struct MemoryScreen: View {
                         .font(.taskTitle)
                         .foregroundStyle(isPast ? Palette.textSecondary : Palette.text)
                     if let start = item.startDate {
-                        Text("\(PeriodLabel.range(start: start, end: item.endDate, today: today)) · \(PeriodLabel.relative(start: start, end: item.endDate, today: today))")
+                        Text(PeriodLabel.summary(start: start, end: item.endDate, today: today))
                             .font(.meta)
                             .foregroundStyle(Palette.textTertiary)
                     } else {

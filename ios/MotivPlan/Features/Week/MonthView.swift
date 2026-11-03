@@ -175,7 +175,7 @@ struct MonthView: View {
                                 .foregroundStyle(Palette.text)
                                 .lineLimit(1)
                             Spacer(minLength: 4)
-                            Text("\(PeriodLabel.range(start: start, end: period.endDate, today: today)) · \(PeriodLabel.relative(start: start, end: period.endDate, today: today))")
+                            Text(PeriodLabel.summary(start: start, end: period.endDate, today: today))
                                 .font(.meta)
                                 .foregroundStyle(Palette.textSecondary)
                                 .lineLimit(1)

@@ -144,6 +144,11 @@ enum PeriodLabel {
         }
     }
 
+    /// « 20 – 24 nov. · dans 3 semaines »
+    static func summary(start: DayKey, end: DayKey?, today: DayKey) -> String {
+        range(start: start, end: end, today: today) + " · " + relative(start: start, end: end, today: today)
+    }
+
     static func daysBetween(_ from: DayKey, _ to: DayKey) -> Int {
         guard let a = DayKeys.date(from: from), let b = DayKeys.date(from: to) else { return 0 }
         return Calendar.current.dateComponents([.day], from: a, to: b).day ?? 0
