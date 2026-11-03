@@ -42,6 +42,27 @@ public struct TaskStore {
         return task
     }
 
+    /// Crée une tâche avec tous ses détails, rangée directement dans sa section (bouton « + »).
+    /// Une quotidienne est posée aujourd'hui ; un jour choisi n'est retenu que si la section se planifie.
+    @discardableResult
+    public func create(_ draft: TaskDraft, source: TaskSource = .manual) throws -> TaskItem {
+        if let minutes = draft.durationMin, minutes < Durations.minimum { throw StoreError.durationTooShort }
+        let task = try capture(draft.title, source: source)
+        let notes = draft.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        task.notes = notes.isEmpty ? nil : notes
+        task.tagRaw = draft.tag?.rawValue
+        task.dueDate = draft.dueDate
+        task.durationMin = draft.durationMin
+        touch(task)
+        let section = try sections().first { $0.id == draft.sectionId }
+        try setSection(section, of: task)
+        if let day = draft.scheduledDate, section?.isPlannable ?? true, task.scheduledDate != day {
+            try schedule(task, on: day)
+        }
+        try save()
+        return task
+    }
+
     public func setTitle(_ title: String, of task: TaskItem) throws {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw StoreError.emptyTitle }

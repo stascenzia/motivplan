@@ -14,11 +14,13 @@ struct RootView: View {
     @Environment(\.modelContext) private var context
     @Environment(SyncCoordinator.self) private var sync: SyncCoordinator?
     @Query(TaskItem.inboxDescriptor) private var inbox: [TaskItem]
+    @Query(TaskSection.orderedDescriptor) private var sections: [TaskSection]
 
     @State private var chrome = AppChrome()
     @State private var tab: AppTab = .planning
     @State private var day = DayKeys.key(for: .now)
     @State private var capture: CaptureRequest?
+    @State private var newTask: NewTaskRequest?
 
     var body: some View {
         Group {
@@ -40,7 +42,7 @@ struct RootView: View {
         .overlay(alignment: .bottom) {
             if !chrome.isTabBarHidden {
                 FloatingTabBar(selection: $tab, inboxBadge: inbox.filter { $0.sectionId == nil }.count) {
-                    capture = CaptureRequest(source: .manual)
+                    newTask = NewTaskRequest(section: defaultSection)
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -50,6 +52,10 @@ struct RootView: View {
         .screenBackground()
         .fullScreenCover(item: $capture) { request in
             CaptureScreen(source: request.source)
+        }
+        .sheet(item: $newTask) { request in
+            NewTaskSheet(initialSection: request.section)
+                .presentationDragIndicator(.visible)
         }
         // Le widget ouvre la capture, clavier levé, source « widget ».
         .onChange(of: captureRequested, initial: true) { _, requested in
@@ -74,6 +80,16 @@ struct RootView: View {
         }
     }
 
+    /// Créée dans l'app, une tâche est rangée d'office : la première section ponctuelle planifiable.
+    private var defaultSection: UUID? {
+        sections.first { $0.isPlannable && $0.repeatRule == .none }?.id
+    }
+}
+
+/// Ouverture de la création complète (bouton « + »).
+struct NewTaskRequest: Identifiable {
+    let id = UUID()
+    let section: UUID?
 }
 
 /// Ouverture de l'écran de capture, avec la source à enregistrer.

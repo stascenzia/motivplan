@@ -109,11 +109,7 @@ struct TaskDetailView: View {
     // MARK: Cartes
 
     private func cardTitle(_ text: String) -> some View {
-        Text(text.uppercased())
-            .font(.groupLabel)
-            .tracking(0.7)
-            .foregroundStyle(Palette.textTertiary)
-            .accessibilityAddTraits(.isHeader)
+        CardTitle(text: text)
     }
 
     private func planningCard(today: DayKey) -> some View {
@@ -357,39 +353,12 @@ struct TaskDetailView: View {
 
     private func choice(_ label: String, symbol: String? = nil, dot: Color? = nil, selected: Bool,
                         action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 7) {
-                if let dot {
-                    Circle().fill(dot).frame(width: 8, height: 8)
-                }
-                if let symbol {
-                    Image(systemName: symbol).font(.caption.weight(.semibold))
-                }
-                Text(label)
-            }
-            .font(.chip)
-            .foregroundStyle(Palette.text)
-            .padding(.horizontal, 12)
-            .frame(minHeight: 36)
-            .background(selected ? Color(hex: 0x2A2A33) : Palette.raised, in: Capsule())
-            .overlay { Capsule().strokeBorder(selected ? Palette.text : .clear, lineWidth: 1.5) }
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? .isSelected : [])
+        ChoiceChip(label: label, symbol: symbol, dot: dot, selected: selected, action: action)
     }
 
     private func dueChoice(_ label: String, selected: Bool, warning: Bool = false,
                            action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(label)
-                .font(.chip)
-                .foregroundStyle(selected ? Palette.onAccent : Palette.textSoft)
-                .padding(.horizontal, 12)
-                .frame(minHeight: 36)
-                .background(selected ? (warning ? Palette.warning : Palette.accent) : Palette.raised, in: Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? .isSelected : [])
+        DateChoiceChip(label: label, selected: selected, warning: warning, action: action)
     }
 
     // MARK: Enregistrement

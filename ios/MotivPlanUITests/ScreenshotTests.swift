@@ -122,7 +122,7 @@ final class ScreenshotTests: XCTestCase {
         snapshot(app, "35-boite-tuile-recurrentes")
     }
 
-    /// Le bouton « + » ouvre la capture plein écran ; on enchaîne deux captures.
+    /// Le bouton « + » ouvre la création complète ; posée aujourd'hui, la tâche arrive dans la frise.
     @MainActor
     func testCaptureButton() throws {
         let app = launch()
@@ -130,16 +130,18 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(plus.waitForExistence(timeout: 30))
         plus.tap()
 
-        let field = app.textFields["capture-field"]
+        // Champ multiligne : selon iOS, exposé comme champ ou comme zone de texte.
+        let field = app.descendants(matching: .any)["new-task-title"]
         XCTAssertTrue(field.waitForExistence(timeout: 15))
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 15))
         // Sur la CI, le champ peut perdre les premières frappes pendant l'animation d'ouverture.
         field.tap()
-        field.typeText("Rappeler le garage\n")
+        field.typeText("Rappeler le garage")
+        app.buttons["new-task-today"].tap()
+        snapshot(app, "05-nouvelle-tache")
+
+        app.buttons["new-task-add"].tap()
         XCTAssertTrue(element(app, "Rappeler le garage").waitForExistence(timeout: 15))
-        field.typeText("Sortir les poubelles")
-        snapshot(app, "05-capture")
-        app.buttons["Fermer"].tap()
+        snapshot(app, "06-apres-creation")
     }
 
     /// Le widget ouvre `motivplan://capture` : capture plein écran, clavier levé, source « widget ».

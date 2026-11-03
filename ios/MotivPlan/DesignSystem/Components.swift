@@ -211,6 +211,71 @@ extension View {
     }
 }
 
+/// Choix dans une liste de puces (section, étiquette, jour) : cerclé quand il est retenu.
+struct ChoiceChip: View {
+    let label: String
+    var symbol: String?
+    var dot: Color?
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 7) {
+                if let dot {
+                    Circle().fill(dot).frame(width: 8, height: 8)
+                }
+                if let symbol {
+                    Image(systemName: symbol).font(.caption.weight(.semibold))
+                }
+                Text(label)
+            }
+            .font(.chip)
+            .foregroundStyle(Palette.text)
+            .padding(.horizontal, 12)
+            .frame(minHeight: 36)
+            .background(selected ? Palette.selectedFill : Palette.raised, in: Capsule())
+            .overlay { Capsule().strokeBorder(selected ? Palette.text : .clear, lineWidth: 1.5) }
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// Choix de date en puce pleine : accent quand il est retenu, ambre pour une échéance passée.
+struct DateChoiceChip: View {
+    let label: String
+    let selected: Bool
+    var warning = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(.chip)
+                .foregroundStyle(selected ? Palette.onAccent : Palette.textSoft)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 36)
+                .background(selected ? (warning ? Palette.warning : Palette.accent) : Palette.raised, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// Titre de carte, en petites majuscules.
+struct CardTitle: View {
+    let text: String
+
+    var body: some View {
+        Text(text.uppercased())
+            .font(.groupLabel)
+            .tracking(0.7)
+            .foregroundStyle(Palette.textTertiary)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
 /// Champ de saisie posé sur une carte, avec un bouton d'ajout à droite.
 struct FieldCard<Content: View>: View {
     var highlighted = false

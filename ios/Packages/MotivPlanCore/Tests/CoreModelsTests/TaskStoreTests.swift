@@ -355,6 +355,45 @@ struct TaskStoreTests {
         #expect(try store.sections().map(\.name) == ["B", "C", "A"])
     }
 
+    @Test("Créer depuis le « + » range la tâche avec tous ses détails et la pose sur son jour")
+    func createWithDetails() throws {
+        let section = try store.createSection(name: "Ponctuelles", defaultDuration: 45)
+        let task = try store.create(TaskDraft(
+            title: " Rappeler le garage ", notes: "  Demander le devis ", sectionId: section.id, tag: .urgent,
+            dueDate: store.tomorrow, scheduledDate: store.today, durationMin: 60))
+        #expect(task.title == "Rappeler le garage")
+        #expect(task.notes == "Demander le devis")
+        #expect(task.sectionId == section.id)
+        #expect(task.tag == .urgent)
+        #expect(task.dueDate == store.tomorrow)
+        #expect(task.status == .scheduled)
+        #expect(task.scheduledDate == store.today)
+        #expect(task.durationMin == 60)
+        #expect(task.source == .manual)
+    }
+
+    @Test("Sans jour, la tâche créée attend dans sa section ; une section hors planning ignore le jour")
+    func createWithoutDay() throws {
+        let shopping = try store.createSection(name: "Courses", isPlannable: false)
+        let later = try store.create(TaskDraft(title: "Envoyer le courrier"))
+        let milk = try store.create(TaskDraft(title: "Lait", sectionId: shopping.id, scheduledDate: store.today))
+        #expect(later.status == .inbox)
+        #expect(later.sectionId == nil)
+        #expect(milk.status == .inbox)
+        #expect(milk.scheduledDate == nil)
+    }
+
+    @Test("Une quotidienne posée seule reste comptée dans sa section")
+    func openTasksIncludeScheduled() throws {
+        let daily = try store.createSection(name: "Quotidiennes", repeatRule: .daily)
+        let bed = try store.create(TaskDraft(title: "Faire le lit", sectionId: daily.id))
+        #expect(bed.scheduledDate == store.today)
+        let open = try store.context.fetch(TaskItem.openDescriptor)
+        #expect(open.map(\.id) == [bed.id])
+        try store.toggleDone(bed)
+        #expect(try store.context.fetch(TaskItem.openDescriptor).isEmpty)
+    }
+
     @Test("Une édition sans changement ne touche pas updatedAt")
     func noOpEdit() throws {
         let task = try store.capture("Lire", source: .manual)

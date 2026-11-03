@@ -9,10 +9,15 @@ import TimelineEngine
 struct InboxView: View {
     @Environment(\.modelContext) private var context
     @Query(TaskItem.inboxDescriptor) private var inbox: [TaskItem]
+    /// En boîte ou posées sur un jour : une tuile de section compte aussi ce qui est déjà planifié.
+    @Query(TaskItem.openDescriptor) private var openTasks: [TaskItem]
     @Query(TaskSection.orderedDescriptor) private var sections: [TaskSection]
     @FocusState private var captureFocused: Bool
     /// Tuile choisie : `nil` pour « À trier ».
     @State private var selectedSection: UUID?
+    /// Tuile survolée pendant un glisser : « inbox » ou l'identifiant de la section.
+    @State private var dropTarget: String?
+    @State private var fileCount = 0
     @State private var expanded: UUID?
     @State private var dayPicker: DayPickerRequest?
     @State private var reviewing: TaskItem?
@@ -26,7 +31,7 @@ struct InboxView: View {
     var body: some View {
         let today = store.today
         let section = sections.first { $0.id == selectedSection }
-        let items = inbox.filter { $0.sectionId == section?.id }
+        let rows = items(in: section)
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 ScreenHeader(title: "Boîte de réception", subtitle: "Tout est noté. Trie quand tu veux.")
@@ -51,10 +56,10 @@ struct InboxView: View {
                     .padding(.bottom, 8)
 
                 LazyVStack(spacing: 6) {
-                    ForEach(items) { task in
+                    ForEach(rows) { task in
                         row(task, section: section, today: today)
                     }
-                    if items.isEmpty {
+                    if rows.isEmpty {
                         Text(section == nil ? "Rien à trier. Tout est rangé." : "Rien à faire ici pour l'instant.")
                             .font(.subtitle)
                             .foregroundStyle(Palette.textTertiary)
@@ -105,6 +110,7 @@ struct InboxView: View {
         .sensoryFeedback(.impact(weight: .light), trigger: captureCount)
         .sensoryFeedback(.success, trigger: scheduleCount)
         .sensoryFeedback(.selection, trigger: selectedSection)
+        .sensoryFeedback(.success, trigger: fileCount)
         // Une section supprimée ailleurs : retour sur « À trier ».
         .onChange(of: sections.map(\.id)) { _, ids in
             if let selectedSection, !ids.contains(selectedSection) { self.selectedSection = nil }
@@ -115,10 +121,9 @@ struct InboxView: View {
 
     private var tiles: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-            tile(name: "À trier", symbol: "tray", count: inbox.filter { $0.sectionId == nil }.count, id: nil)
+            tile(name: "À trier", symbol: "tray", count: items(in: nil).count, id: nil)
             ForEach(sections) { section in
-                tile(name: section.name, symbol: section.symbol,
-                     count: inbox.filter { $0.sectionId == section.id }.count, id: section.id)
+                tile(name: section.name, symbol: section.symbol, count: items(in: section).count, id: section.id)
                     .contextMenu {
                         Button("Modifier", systemImage: "slider.horizontal.3") {
                             editingSection = SectionEditing(section: section)
@@ -158,8 +163,17 @@ struct InboxView: View {
         }
     }
 
+    /// « À trier » : captures en boîte sans section. Une section : tout ce qui reste à faire,
+    /// planifié compris (la ligne dit « Prévue … »).
+    private func items(in section: TaskSection?) -> [TaskItem] {
+        guard let section else { return inbox.filter { $0.sectionId == nil } }
+        return openTasks.filter { $0.sectionId == section.id }
+    }
+
     private func tile(name: String, symbol: String, count: Int, id: UUID?) -> some View {
         let selected = selectedSection == id
+        let key = id?.uuidString ?? "inbox"
+        let targeted = dropTarget == key
         return Button {
             withAnimation(.easeInOut(duration: 0.15)) {
                 selectedSection = id
@@ -191,12 +205,25 @@ struct InboxView: View {
                         in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(selected ? Palette.accent : Palette.hairline, lineWidth: selected ? 1.5 : 1)
+                    .strokeBorder(selected || targeted ? Palette.accent : Palette.hairline,
+                                  lineWidth: targeted ? 2.5 : selected ? 1.5 : 1)
             }
+            .scaleEffect(targeted ? 1.04 : 1)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(name), \(count)")
         .accessibilityAddTraits(selected ? .isSelected : [])
+        // Ranger en glissant une tâche sur la tuile.
+        .dropDestination(for: TaskDragItem.self) { dropped, _ in
+            guard let taskId = dropped.first?.id, let task = openTasks.first(where: { $0.id == taskId }) else { return false }
+            run { try store.setSection(sections.first { $0.id == id }, of: task) }
+            fileCount += 1
+            return true
+        } isTargeted: { isTargeted in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                if isTargeted { dropTarget = key } else if dropTarget == key { dropTarget = nil }
+            }
+        }
     }
 
     private func listHeader(_ section: TaskSection?) -> some View {
@@ -245,6 +272,15 @@ struct InboxView: View {
         }
         .background(open ? Palette.raised : Palette.surface,
                     in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        // Glisser sur une tuile range la tâche (en plus de « Ranger »).
+        .draggable(TaskDragItem(id: task.id)) {
+            Text(task.title)
+                .font(.manrope(13, .bold, relativeTo: .footnote))
+                .foregroundStyle(Palette.text)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Palette.control, in: Capsule())
+        }
         .contextMenu {
             TaskActionsMenu(task: task, store: store, sections: sections, pickDay: { dayPicker = $0 },
                             finish: finish, run: run)
@@ -260,6 +296,10 @@ struct InboxView: View {
                     .buttonStyle(PillButtonStyle())
                 Button("Planifier le…") { dayPicker = DayPickerRequest(kind: .schedule, task: task) }
                     .buttonStyle(PillButtonStyle())
+                if task.scheduledDate != nil {
+                    Button("Retirer du jour") { run { try store.unschedule(task) } }
+                        .buttonStyle(PillButtonStyle())
+                }
             } else {
                 Button(section?.keepsMemory == true ? "C'est fait…" : "Terminer") { finish(task) }
                     .buttonStyle(PillButtonStyle(prominent: true))

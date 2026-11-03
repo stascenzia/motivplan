@@ -13,6 +13,8 @@ enum Palette {
     static let field = Color(hex: 0x23232B)
     static let control = Color(hex: 0x26262D)
     static let controlHigh = Color(hex: 0x2E2E38)
+    /// Puce de choix retenue.
+    static let selectedFill = Color(hex: 0x2A2A33)
 
     // Bordures et traits.
     static let hairline = Color(hex: 0x222228)

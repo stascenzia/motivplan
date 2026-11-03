@@ -198,6 +198,16 @@ extension TaskItem {
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
     }
 
+    /// À faire, en boîte ou posées sur un jour sans être faites : une tuile de section les compte
+    /// toutes (une quotidienne posée seule reste visible dans sa section).
+    public static var openDescriptor: FetchDescriptor<TaskItem> {
+        let inbox = TaskStatus.inbox.rawValue
+        let scheduled = TaskStatus.scheduled.rawValue
+        return FetchDescriptor(
+            predicate: #Predicate { $0.deletedAt == nil && ($0.statusRaw == inbox || $0.statusRaw == scheduled) },
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+    }
+
     /// Vue moteur pour le report automatique.
     public var rolloverTask: RolloverTask {
         RolloverTask(id: id, status: status, scheduledDate: scheduledDate, orderIndex: orderIndex,
