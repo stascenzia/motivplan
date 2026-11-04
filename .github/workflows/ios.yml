@@ -55,7 +55,7 @@ jobs:
           BIN=$(swift build --package-path Packages/MotivPlanCore --show-bin-path)
           HELPER="$(dirname "$(xcrun --find swift)")/../libexec/swift/pm/swiftpm-testing-helper"
           ls -la "$HELPER" || true
-          lldb --batch -o run -k "bt 60" -k quit -- "$HELPER" --test-bundle-path "$BIN/MotivPlanCorePackageTests.xctest" \
+          lldb --batch -o run -k "bt 60" -k quit -- "$HELPER" --test-bundle-path "$BIN/MotivPlanCorePackageTests.xctest/Contents/MacOS/MotivPlanCorePackageTests" \
             --testing-library swift-testing --filter MigrationTests || true
           swift test --package-path Packages/MotivPlanCore --no-parallel --filter MigrationTests
           swift test --package-path Packages/MotivPlanCore --no-parallel --skip MigrationTests
