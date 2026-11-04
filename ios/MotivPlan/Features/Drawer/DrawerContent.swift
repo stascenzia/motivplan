@@ -187,7 +187,7 @@ struct DrawerContent: View {
             }
         }
         var result: [TaskGroup] = []
-        let unsorted = sorted.filter { $0.sectionId == nil }
+        let unsorted = sorted.filter(\.isUnsortedTask)
         if !unsorted.isEmpty {
             result.append(TaskGroup(filter: .unsorted, title: "À trier", symbol: "tray", tasks: unsorted))
         }

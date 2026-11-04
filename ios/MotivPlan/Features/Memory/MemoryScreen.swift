@@ -2,17 +2,22 @@ import CoreModels
 import SwiftData
 import SwiftUI
 import TimelineEngine
+import UIKit
 
 /// Onglet Mémoire (ADR-015) : tout ce qui n'est pas une tâche à caser dans la journée. Envies avec
 /// avis (films, recettes), listes à cocher (courses), périodes datées (voyages). Une tuile par
 /// liste, puis le contenu de la liste choisie, présenté selon son type.
 struct MemoryScreen: View {
+    /// Tuile « À trier » de la Mémoire (ADR-016) dans `selection`.
+    static let unsortedSelection = UUID(uuidString: "00000000-0000-0000-0000-00000000A7A1")!
+
     /// Liste ouverte, gardée par la coque : le « + » y range la nouvelle entrée.
     @Binding var selection: UUID?
 
     @Environment(\.modelContext) private var context
     @Query(TaskSection.orderedDescriptor) private var sections: [TaskSection]
     @Query(TaskItem.sectionedDescriptor) private var items: [TaskItem]
+    @Query(TaskItem.inboxDescriptor) private var inbox: [TaskItem]
     @FocusState private var captureFocused: Bool
     @State private var showMemory = false
     @State private var reviewing: TaskItem?
@@ -23,13 +28,15 @@ struct MemoryScreen: View {
     @State private var errorMessage: String?
     @State private var doneCount = 0
     @State private var checkCount = 0
+    @State private var copied = false
 
     private var store: TaskStore { TaskStore(context: context) }
 
     var body: some View {
         let today = store.today
         let lists = sections.filter(\.kind.isMemorySpace)
-        let current = lists.first { $0.id == selection } ?? lists.first
+        let showsUnsorted = selection == Self.unsortedSelection
+        let current = showsUnsorted ? nil : lists.first { $0.id == selection } ?? lists.first
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -39,7 +46,11 @@ struct MemoryScreen: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 16)
 
-                    if let current {
+                    if showsUnsorted {
+                        unsortedContent(lists, today: today)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 22)
+                    } else if let current {
                         content(current, today: today)
                             .padding(.horizontal, 16)
                             .padding(.top, 22)
@@ -58,7 +69,7 @@ struct MemoryScreen: View {
                     .hidesTabBar()
             }
             .sheet(item: $reviewing) { task in
-                ReviewSheet(task: task) { review, note in
+                ReviewSheet(task: task, takesPhotos: sections.section(of: task)?.template?.takesPhotos == true) { review, note in
                     run { try store.complete(task, review: review, note: note) }
                     doneCount += 1
                 }
@@ -73,7 +84,7 @@ struct MemoryScreen: View {
                 SectionEditor(section: editing.section, defaultKind: .memory)
             }
             .sheet(item: $newEntry) { request in
-                NewTaskSheet(initialSection: request.section)
+                NewTaskSheet(initialSection: request.section, initialSpace: .memory)
                     .presentationDragIndicator(.visible)
             }
             .alert("Action impossible", isPresented: Binding(
@@ -94,6 +105,14 @@ struct MemoryScreen: View {
 
     private func tiles(_ lists: [TaskSection], current: TaskSection?, today: DayKey) -> some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+            // Captures de la Mémoire par Siri ou le widget, pas encore rangées (ADR-016).
+            SectionTile(name: "À trier", symbol: "tray", count: inbox.filter(\.isUnsortedMemory).count,
+                        colors: SectionColors.inbox, selected: selection == Self.unsortedSelection) {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    selection = Self.unsortedSelection
+                    showMemory = false
+                }
+            }
             ForEach(lists) { list in
                 SectionTile(name: list.name, symbol: list.symbol, count: count(of: list, today: today),
                             colors: colors(of: list), selected: current?.id == list.id) {
@@ -157,7 +176,7 @@ struct MemoryScreen: View {
     private func memoryList(_ list: TaskSection, items own: [TaskItem], today: DayKey) -> some View {
         let todo = own.filter { $0.status == .inbox || $0.status == .scheduled }
         let memory = own.filter(\.isDone).sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
-        capture(list, placeholder: "Un film, une recette à essayer…")
+        capture(list, placeholder: list.template?.titlePrompt ?? "Un film, une recette à essayer…")
         HStack(spacing: 2) {
             modeButton("À faire · \(todo.count)", selected: !showMemory) { showMemory = false }
             modeButton("Mémoire · \(memory.count)", selected: showMemory) { showMemory = true }
@@ -212,7 +231,7 @@ struct MemoryScreen: View {
             }
             .accessibilityLabel("Planifier")
             Button {
-                reviewing = task
+                finish(task)
             } label: {
                 Circle()
                     .strokeBorder(Palette.ring, lineWidth: 2)
@@ -221,12 +240,85 @@ struct MemoryScreen: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("C'est fait…")
+            .accessibilityLabel(asksReview(task) ? "C'est fait…" : "Fait")
             .padding(.trailing, 6)
         }
         .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .contextMenu {
-            Button("C'est fait…", systemImage: "checkmark.circle") { reviewing = task }
+            Button(asksReview(task) ? "C'est fait…" : "Fait", systemImage: "checkmark.circle") { finish(task) }
+            Button("Supprimer", systemImage: "trash", role: .destructive) { run { try store.delete(task) } }
+        }
+    }
+
+    private func asksReview(_ task: TaskItem) -> Bool {
+        sections.section(of: task)?.asksReview ?? true
+    }
+
+    /// Cocher ouvre l'avis tout de suite (ADR-016) ; une liste simple se termine sans avis.
+    private func finish(_ task: TaskItem) {
+        if asksReview(task) {
+            reviewing = task
+        } else {
+            withAnimation(.spring(duration: 0.3)) { run { try store.complete(task, review: nil, note: nil) } }
+            doneCount += 1
+        }
+    }
+
+    // MARK: À trier
+
+    /// Captures de la Mémoire (Siri, widget) : on les range dans une liste, qui donne leur formulaire.
+    @ViewBuilder
+    private func unsortedContent(_ lists: [TaskSection], today: DayKey) -> some View {
+        let unsorted = inbox.filter(\.isUnsortedMemory)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("À trier")
+                    .font(.manrope(17, .extrabold, relativeTo: .headline))
+                    .foregroundStyle(Palette.text)
+                Spacer()
+                Text("Range chaque envie dans sa liste")
+                    .font(.meta)
+                    .foregroundStyle(Palette.textTertiary)
+            }
+            .padding(.horizontal, 4)
+
+            CaptureField(focus: $captureFocused, placeholder: "Un film, une recette, une envie…",
+                         identifier: "memory-capture-field") { title in
+                run { try store.capture(title, source: .manual, space: .memory) }
+            }
+
+            VStack(spacing: 6) {
+                ForEach(unsorted) { task in
+                    unsortedRow(task, lists: lists, today: today)
+                }
+                if unsorted.isEmpty {
+                    emptyText("Rien à trier. « Dis Siri, MotivPlan mémoire » pour garder une envie au vol.")
+                }
+            }
+        }
+    }
+
+    private func unsortedRow(_ task: TaskItem, lists: [TaskSection], today: DayKey) -> some View {
+        HStack(spacing: 0) {
+            NavigationLink(value: task) {
+                TaskRow(task: task, today: today)
+            }
+            .buttonStyle(.plain)
+            Menu {
+                ForEach(lists) { list in
+                    Button(list.name, systemImage: list.symbol) {
+                        withAnimation(.spring(duration: 0.3)) { run { try store.setSection(list, of: task) } }
+                        doneCount += 1
+                    }
+                }
+            } label: {
+                Text("Ranger").pill()
+            }
+            .padding(.trailing, 10)
+            .accessibilityIdentifier("memory-file-\(task.title)")
+        }
+        .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        .contextMenu {
             Button("Supprimer", systemImage: "trash", role: .destructive) { run { try store.delete(task) } }
         }
     }
@@ -252,11 +344,35 @@ struct MemoryScreen: View {
                 .padding(.top, 10)
                 ForEach(checked) { item in checkRow(item, checked: true) }
             }
+            if !open.isEmpty {
+                copyForReminders(open)
+                    .padding(.top, 10)
+            }
         }
         .confirmationDialog("Retirer les \(checked.count) articles cochés ?", isPresented: $confirmClear,
                             titleVisibility: .visible) {
             Button("Vider les cochés", role: .destructive) { run { try store.clearChecked(in: list) } }
         }
+    }
+
+    /// Copie les articles à acheter, un par ligne : collés dans une liste de Rappels, chaque ligne
+    /// devient un rappel (ADR-016).
+    private func copyForReminders(_ open: [TaskItem]) -> some View {
+        Button {
+            UIPasteboard.general.string = open.map(\.title).joined(separator: "\n")
+            withAnimation { copied = true }
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                withAnimation { copied = false }
+            }
+        } label: {
+            Label(copied ? "Copié ! Colle dans Rappels" : "Copier pour Rappels",
+                  systemImage: copied ? "checkmark" : "doc.on.doc")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(PillButtonStyle())
+        .accessibilityIdentifier("memory-copy-reminders")
+        .sensoryFeedback(.success, trigger: copied) { _, now in now }
     }
 
     private func checkRow(_ item: TaskItem, checked: Bool) -> some View {
@@ -344,7 +460,8 @@ struct MemoryScreen: View {
                         .font(.taskTitle)
                         .foregroundStyle(isPast ? Palette.textSecondary : Palette.text)
                     if let start = item.startDate {
-                        Text(PeriodLabel.summary(start: start, end: item.endDate, today: today))
+                        Text([item.field("place"), PeriodLabel.summary(start: start, end: item.endDate, today: today),
+                              item.review?.label].compactMap { $0 }.joined(separator: " · "))
                             .font(.meta)
                             .foregroundStyle(Palette.textTertiary)
                     } else {
@@ -366,6 +483,7 @@ struct MemoryScreen: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
+            Button(item.isDone ? "Modifier l'avis…" : "Donner mon avis…", systemImage: "star") { reviewing = item }
             Button("Supprimer", systemImage: "trash", role: .destructive) { run { try store.delete(item) } }
         }
     }

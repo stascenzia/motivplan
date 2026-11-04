@@ -127,7 +127,7 @@ struct DrawerPeek: View {
 
     var body: some View {
         let plannable = Set(sections.filter(\.isDayPlannable).map(\.id))
-        let available = tasks.filter { $0.sectionId.map { plannable.contains($0) } ?? true }
+        let available = tasks.filter { $0.sectionId.map { plannable.contains($0) } ?? $0.isUnsortedTask }
         let dueToday = available.filter { $0.dueDate.map { $0 <= today } ?? false }.count
         VStack(alignment: .leading, spacing: 1) {
             Text("Tiroir")

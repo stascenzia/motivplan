@@ -1,10 +1,12 @@
 import CoreModels
 import SwiftUI
 
-/// Capture plein écran (bouton « + », widget) : juste un titre, tout part dans la boîte.
-/// Le clavier reste levé pour enchaîner ; les dernières captures s'affichent au-dessus.
+/// Capture plein écran (widget) : juste un titre, tout part dans « À trier » de la boîte ou de la
+/// Mémoire (ADR-016). Le clavier reste levé pour enchaîner ; les dernières captures s'affichent
+/// au-dessus.
 struct CaptureScreen: View {
     let source: TaskSource
+    var space: TaskSpace = .tasks
 
     private struct Added: Identifiable {
         let id: UUID
@@ -22,7 +24,10 @@ struct CaptureScreen: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ScreenHeader(title: "Capturer", subtitle: "Juste un titre. Tout part dans la boîte de réception.") {
+            ScreenHeader(title: space == .memory ? "Garder en mémoire" : "Capturer",
+                         subtitle: space == .memory
+                             ? "Un film, une recette, une envie. Tout part dans la Mémoire, à trier."
+                             : "Juste un titre. Tout part dans la boîte de réception.") {
                 RoundIconButton(label: "Fermer", systemImage: "xmark") { dismiss() }
             }
 
@@ -45,7 +50,7 @@ struct CaptureScreen: View {
         }
         .safeAreaInset(edge: .bottom) {
             FieldCard(highlighted: true) {
-                TextField("Que dois-tu faire ?", text: $draft)
+                TextField(space == .memory ? "Un film, une recette, une envie…" : "Que dois-tu faire ?", text: $draft)
                     .font(.manrope(17, .semibold, relativeTo: .body))
                     .foregroundStyle(Palette.text)
                     .focused($focused)
@@ -111,7 +116,7 @@ struct CaptureScreen: View {
             Text("Aussi sans ouvrir l'app, même hors-ligne")
                 .font(.chip)
                 .foregroundStyle(Palette.textSoft)
-            shortcut("waveform", "« Dis Siri, capture dans MotivPlan »")
+            shortcut("waveform", space == .memory ? "« Dis Siri, MotivPlan mémoire »" : "« Dis Siri, capture dans MotivPlan »")
             shortcut("square.grid.2x2", "Widget d'accueil ou d'écran verrouillé, bouton Action")
         }
         .card(Palette.surfaceLow, padding: 16)
@@ -138,7 +143,7 @@ struct CaptureScreen: View {
         let title = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
         do {
-            let task = try TaskStore(context: context).capture(title, source: source)
+            let task = try TaskStore(context: context).capture(title, source: source, space: space)
             added.insert(Added(id: task.id, title: title, at: .now), at: 0)
             captureCount += 1
             draft = ""

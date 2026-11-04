@@ -412,7 +412,7 @@ struct DayTimeline: View {
 
     private func toggle(_ task: TaskItem) {
         let wasDone = task.isDone
-        if !wasDone, sections.section(of: task)?.keepsMemory == true {
+        if !wasDone, sections.section(of: task)?.asksReview == true {
             reviewing = task
             return
         }

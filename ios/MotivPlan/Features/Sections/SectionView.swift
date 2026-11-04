@@ -203,7 +203,7 @@ struct SectionView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(section.keepsMemory ? "C'est fait…" : "Fait")
+            .accessibilityLabel(section.asksReview ? "C'est fait…" : "Fait")
             .padding(.trailing, 6)
         }
         .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
@@ -214,7 +214,7 @@ struct SectionView: View {
     }
 
     private func finish(_ task: TaskItem) {
-        if section.keepsMemory {
+        if section.asksReview {
             reviewing = task
         } else {
             run { try store.toggleDone(task) }

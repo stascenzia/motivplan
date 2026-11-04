@@ -2,7 +2,8 @@ import CoreModels
 import SwiftUI
 import TimelineEngine
 
-/// Création ou modification d'une section, de son type (ADR-015) et de ses règles (ADR-014).
+/// Création ou modification d'une section, de son modèle (ADR-016, qui décide de son type,
+/// ADR-015) et de ses règles (ADR-014).
 struct SectionEditor: View {
     /// `nil` : nouvelle section.
     let section: TaskSection?
@@ -16,7 +17,8 @@ struct SectionEditor: View {
     @State private var isPlannable = true
     @State private var keepsMemory = false
     @State private var repeatRule: SectionRepeat = .none
-    @State private var kind: SectionKind = .tasks
+    /// `nil` : une section à faire.
+    @State private var template: SectionTemplate?
     @State private var hasDuration = false
     @State private var duration: Minutes = 30
     @State private var confirmDelete = false
@@ -57,11 +59,14 @@ struct SectionEditor: View {
                     }
 
                     Section {
-                        Picker("Type", selection: $kind) {
-                            ForEach(SectionKind.allCases, id: \.self) { Text($0.label).tag($0) }
+                        Picker("Modèle", selection: $template) {
+                            Text("À faire").tag(SectionTemplate?.none)
+                            ForEach(SectionTemplate.allCases, id: \.self) { template in
+                                Label(template.label, systemImage: template.symbol).tag(Optional(template))
+                            }
                         }
                     } footer: {
-                        Text(kind.explanation)
+                        Text(template?.explanation ?? SectionKind.tasks.explanation)
                     }
 
                     if kind == .tasks {
@@ -130,7 +135,15 @@ struct SectionEditor: View {
             }
         }
         .onAppear(perform: load)
+        // Une nouvelle section prend le nom et l'icône du modèle, tant qu'on ne les a pas choisis.
+        .onChange(of: template) { previous, chosen in
+            guard section == nil else { return }
+            if name.isEmpty || name == previous?.label { name = chosen?.label ?? "" }
+            if let chosen { symbol = chosen.symbol }
+        }
     }
+
+    private var kind: SectionKind { template?.kind ?? .tasks }
 
     private var rulesExplanation: String {
         var lines = [isPlannable
@@ -148,10 +161,10 @@ struct SectionEditor: View {
 
     private func load() {
         guard let section else {
-            kind = defaultKind
+            template = defaultKind == .tasks ? nil : .liste
             return
         }
-        kind = section.kind
+        template = section.template
         name = section.name
         symbol = section.symbol
         isPlannable = section.isPlannable
@@ -168,11 +181,11 @@ struct SectionEditor: View {
             if let section {
                 try store.updateSection(section, name: name, symbol: symbol, defaultDuration: minutes,
                                         isPlannable: isPlannable, keepsMemory: keepsMemory, repeatRule: rule,
-                                        kind: kind)
+                                        kind: kind, template: template)
             } else {
                 try store.createSection(name: name, symbol: symbol, defaultDuration: minutes,
                                         isPlannable: isPlannable, keepsMemory: keepsMemory, repeatRule: rule,
-                                        kind: kind)
+                                        kind: kind, template: template)
             }
         }
         if saved { dismiss() }

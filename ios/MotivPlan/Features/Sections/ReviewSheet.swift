@@ -1,9 +1,11 @@
 import CoreModels
 import SwiftUI
 
-/// Avis rapide en terminant un élément de mémoire (ADR-014). Tout est facultatif.
+/// Avis rapide en terminant un élément de mémoire (ADR-014). Tout est facultatif. Un voyage ou
+/// une recette accepte des photos (ADR-016), gardées sur l'iPhone.
 struct ReviewSheet: View {
     let task: TaskItem
+    var takesPhotos = false
     let onSave: (Review?, String?) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -40,6 +42,11 @@ struct ReviewSheet: View {
                         TextField("Ce que tu en as pensé", text: $note, axis: .vertical)
                             .lineLimit(2...6)
                     }
+                    if takesPhotos {
+                        Section("Photos") {
+                            PhotoStrip(taskId: task.id)
+                        }
+                    }
                 }
                 .formRow()
             }
@@ -59,7 +66,7 @@ struct ReviewSheet: View {
             }
             .sensoryFeedback(.selection, trigger: review)
         }
-        .presentationDetents([.medium])
+        .presentationDetents(takesPhotos ? [.large] : [.medium])
         .onAppear {
             review = task.review
             note = task.reviewNote ?? ""

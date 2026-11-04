@@ -75,6 +75,11 @@ struct TaskBubble: View {
                     .font(.meta)
                     .foregroundStyle(Palette.warning)
             }
+            if let steps = SubtaskLabel.progress(task.subtasks) {
+                Text("· \(steps)")
+                    .font(.meta)
+                    .foregroundStyle(Palette.textTertiary)
+            }
         }
         .lineLimit(1)
     }

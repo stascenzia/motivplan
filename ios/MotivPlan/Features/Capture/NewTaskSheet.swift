@@ -3,13 +3,17 @@ import SwiftData
 import SwiftUI
 import TimelineEngine
 
-/// Création complète depuis le bouton « + » : titre, section, jour, durée, étiquette, échéance,
-/// notes. Créée dans l'app, l'entrée est rangée tout de suite dans sa section (ADR-015) ; la capture
+/// Création complète depuis le bouton « + », en deux onglets (ADR-016) :
+/// - Tâche : titre, section, jour, durée, étiquette, échéance, étapes, notes ;
+/// - Mémoire : la section choisie décide du formulaire (genre et plateforme d'un film, lieu et
+///   dates d'un voyage, ingrédients d'une recette…).
+/// Créée dans l'app, l'entrée est rangée tout de suite dans sa section (ADR-015) ; la capture
 /// rapide (widget, Siri, champ de la boîte) reste un simple titre qui part dans « À trier ».
-/// Les champs suivent le type de la section : dates pour une période, juste un titre pour un article.
 struct NewTaskSheet: View {
     /// Section proposée à l'ouverture.
     let initialSection: UUID?
+    /// Onglet proposé à l'ouverture, si la section ne le décide pas.
+    var initialSpace: TaskSpace = .tasks
 
     private enum DateField: String, Identifiable {
         case day, due
@@ -20,6 +24,7 @@ struct NewTaskSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Query(TaskSection.orderedDescriptor) private var sections: [TaskSection]
     @FocusState private var titleFocused: Bool
+    @State private var space: TaskSpace = .tasks
     @State private var draft = TaskDraft()
     @State private var picking: DateField?
     @State private var errorMessage: String?
@@ -32,12 +37,13 @@ struct NewTaskSheet: View {
     var body: some View {
         let today = store.today
         let section = sections.first { $0.id == draft.sectionId }
-        let kind = section?.kind ?? .tasks
-        let plannable = section?.isDayPlannable ?? true
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    TextField(kind.titlePrompt, text: $draft.title, axis: .vertical)
+                    spacePicker
+                        .padding(.bottom, 4)
+
+                    TextField(titlePrompt(section), text: $draft.title, axis: .vertical)
                         .font(.manrope(24, .extrabold, relativeTo: .title))
                         .tracking(-0.4)
                         .foregroundStyle(Palette.text)
@@ -49,20 +55,9 @@ struct NewTaskSheet: View {
                         .padding(.bottom, 4)
 
                     sectionCard
-                    switch kind {
-                    case .tasks:
-                        if plannable {
-                            dayCard(today: today, section: section)
-                            durationCard(section: section)
-                        }
-                        tagCard
-                        dueCard(today: today)
-                    case .memory:
-                        tagCard
-                    case .periods:
-                        periodCard
-                    case .checklist:
-                        EmptyView()
+                    switch space {
+                    case .tasks: taskCards(today: today, section: section)
+                    case .memory: memoryCards(section: section)
                     }
                     notesCard
                 }
@@ -72,7 +67,7 @@ struct NewTaskSheet: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .screenBackground()
-            .navigationTitle(kind.newTitle)
+            .navigationTitle(newTitle(section))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Palette.background, for: .navigationBar)
             .toolbar {
@@ -104,8 +99,11 @@ struct NewTaskSheet: View {
             }
         }
         .sensoryFeedback(.success, trigger: createdCount)
+        .sensoryFeedback(.selection, trigger: space)
         .onAppear {
             draft.sectionId = initialSection
+            let opened = sections.first { $0.id == initialSection }
+            space = opened.map { $0.kind.isMemorySpace ? .memory : .tasks } ?? initialSpace
         }
         .task {
             // Sur iOS 17, le focus au premier rendu peut demander un léger différé (plan, §Capture).
@@ -118,38 +116,99 @@ struct NewTaskSheet: View {
         !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private func titlePrompt(_ section: TaskSection?) -> String {
+        if let template = section?.template { return template.titlePrompt }
+        return space == .memory ? "Un film, une recette, une idée…" : SectionKind.tasks.titlePrompt
+    }
+
+    private func newTitle(_ section: TaskSection?) -> String {
+        if let template = section?.template { return template.newTitle }
+        return space == .memory ? "Garder en mémoire" : SectionKind.tasks.newTitle
+    }
+
+    // MARK: Onglets
+
+    private var spacePicker: some View {
+        HStack(spacing: 2) {
+            spaceButton("Tâche", symbol: "checkmark.circle", value: .tasks, identifier: "new-tab-task")
+            spaceButton("Mémoire", symbol: "sparkles", value: .memory, identifier: "new-tab-memory")
+        }
+        .padding(4)
+        .background(Palette.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private func spaceButton(_ label: String, symbol: String, value: TaskSpace, identifier: String) -> some View {
+        let selected = space == value
+        return Button {
+            guard !selected else { return }
+            withAnimation(.easeInOut(duration: 0.15)) { switchSpace(to: value) }
+        } label: {
+            Label(label, systemImage: symbol)
+                .font(.manrope(14, selected ? .extrabold : .bold, relativeTo: .subheadline))
+                .foregroundStyle(selected ? Palette.onAccent : Palette.textSecondary)
+                .frame(maxWidth: .infinity, minHeight: 38)
+                .background(selected ? Palette.accent : .clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    /// Changer d'onglet propose la première section de l'espace et vide les champs de l'autre.
+    private func switchSpace(to value: TaskSpace) {
+        space = value
+        draft.fields = [:]
+        switch value {
+        case .tasks:
+            draft.sectionId = sections.first { $0.isDayPlannable && $0.repeatRule == .none }?.id
+        case .memory:
+            draft.sectionId = sections.first(where: \.kind.isMemorySpace)?.id
+        }
+    }
+
     // MARK: Cartes
 
-    /// La to-do d'abord, puis les listes de la mémoire (ADR-015).
+    @ViewBuilder
+    private func taskCards(today: DayKey, section: TaskSection?) -> some View {
+        if section?.isDayPlannable ?? true {
+            dayCard(today: today, section: section)
+            durationCard(section: section)
+        }
+        tagCard
+        dueCard(today: today)
+        DraftSubtasksCard(titles: $draft.subtasks)
+    }
+
+    @ViewBuilder
+    private func memoryCards(section: TaskSection?) -> some View {
+        if let template = section?.template, !template.fields.isEmpty {
+            TemplateFieldsCard(fields: template.fields, values: draft.fields, immediate: true) { key, value in
+                draft.fields[key] = value
+            }
+            .id(template)
+        }
+        if section?.kind == .periods {
+            periodCard
+        }
+    }
+
+    /// Les sections de l'onglet, et son « À trier ».
     private var sectionCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            CardTitle(text: "À faire")
+        let own = sections.filter { $0.kind.isMemorySpace == (space == .memory) }
+        return VStack(alignment: .leading, spacing: 10) {
+            CardTitle(text: space == .memory ? "Liste" : "Section")
             FlowLayout(spacing: 6) {
                 ChoiceChip(label: "À trier", symbol: "tray", selected: draft.sectionId == nil) {
                     draft.sectionId = nil
                 }
-                ForEach(sections.filter { $0.kind == .tasks }) { section in
-                    sectionChip(section)
-                }
-            }
-            let lists = sections.filter(\.kind.isMemorySpace)
-            if !lists.isEmpty {
-                CardTitle(text: "Mémoire")
-                    .padding(.top, 4)
-                FlowLayout(spacing: 6) {
-                    ForEach(lists) { section in
-                        sectionChip(section)
+                ForEach(own) { section in
+                    ChoiceChip(label: section.name, symbol: section.symbol, selected: draft.sectionId == section.id) {
+                        draft.sectionId = section.id
                     }
                 }
             }
         }
         .card()
-    }
-
-    private func sectionChip(_ section: TaskSection) -> some View {
-        ChoiceChip(label: section.name, symbol: section.symbol, selected: draft.sectionId == section.id) {
-            draft.sectionId = section.id
-        }
     }
 
     /// Premier et dernier jour, inclus. Une période ne va jamais dans la journée.
@@ -271,20 +330,28 @@ struct NewTaskSheet: View {
 
     // MARK: Création
 
-    /// Ne garde que les champs du type de la section choisie.
+    /// Ne garde que les champs de l'onglet et du type de la section choisie.
     private func create() {
         guard canCreate else { return }
         var draft = draft
-        let kind = sections.first { $0.id == draft.sectionId }?.kind ?? .tasks
-        if kind != .tasks {
+        draft.space = space
+        let section = sections.first { $0.id == draft.sectionId }
+        switch space {
+        case .tasks:
+            draft.fields = [:]
+            draft.startDate = nil
+            draft.endDate = nil
+        case .memory:
             draft.scheduledDate = nil
             draft.durationMin = nil
             draft.dueDate = nil
-        }
-        if kind == .checklist || kind == .periods { draft.tag = nil }
-        if kind == .periods {
-            draft.startDate = DayKeys.key(for: periodStart)
-            draft.endDate = DayKeys.key(for: max(periodEnd, periodStart))
+            draft.tag = nil
+            draft.subtasks = []
+            if section?.template == nil { draft.fields = [:] }
+            if section?.kind == .periods {
+                draft.startDate = DayKeys.key(for: periodStart)
+                draft.endDate = DayKeys.key(for: max(periodEnd, periodStart))
+            }
         }
         do {
             try store.create(draft)

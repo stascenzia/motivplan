@@ -148,10 +148,10 @@ struct InboxView: View {
         }
     }
 
-    /// « À trier » : captures en boîte sans section. Une section : tout ce qui reste à faire,
-    /// planifié compris (la ligne dit « Prévue … »).
+    /// « À trier » : captures en boîte sans section, hors Mémoire (ADR-016). Une section : tout ce
+    /// qui reste à faire, planifié compris (la ligne dit « Prévue … »).
     private func items(in section: TaskSection?) -> [TaskItem] {
-        guard let section else { return inbox.filter { $0.sectionId == nil } }
+        guard let section else { return inbox.filter(\.isUnsortedTask) }
         return openTasks.filter { $0.sectionId == section.id }
     }
 
@@ -186,7 +186,7 @@ struct InboxView: View {
             if let section {
                 NavigationLink(value: section) {
                     HStack(spacing: 4) {
-                        Text(section.keepsMemory ? "Section et mémoire" : "Voir la section")
+                        Text(section.asksReview ? "Section et mémoire" : "Voir la section")
                         Image(systemName: "chevron.forward")
                     }
                     .font(.manrope(12, .bold, relativeTo: .caption))
@@ -252,7 +252,7 @@ struct InboxView: View {
                         .buttonStyle(PillButtonStyle())
                 }
             } else {
-                Button(section?.keepsMemory == true ? "C'est fait…" : "Terminer") { finish(task) }
+                Button(section?.asksReview == true ? "C'est fait…" : "Terminer") { finish(task) }
                     .buttonStyle(PillButtonStyle(prominent: true))
             }
             Menu {
@@ -290,7 +290,7 @@ struct InboxView: View {
     }
 
     private func finish(_ task: TaskItem) {
-        if sections.section(of: task)?.keepsMemory == true {
+        if sections.section(of: task)?.asksReview == true {
             reviewing = task
         } else {
             run { try store.toggleDone(task) }

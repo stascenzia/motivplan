@@ -37,19 +37,29 @@ struct TaskDetailView: View {
                     .padding(.horizontal, 4)
                     .padding(.bottom, 4)
 
-                // Les champs suivent le type de la section (ADR-015).
-                let kind = sections.section(of: task)?.kind ?? .tasks
+                // Les champs suivent le type de la section (ADR-015) et son modèle (ADR-016).
+                let section = sections.section(of: task)
+                let kind = section?.kind ?? .tasks
                 if kind == .periods {
                     periodCard
                 } else if kind != .checklist {
                     planningCard(today: today)
                 }
+                if let template = section?.template, !template.fields.isEmpty {
+                    TemplateFieldsCard(fields: template.fields, values: task.fields) { key, value in
+                        run { try store.setField(key, to: value, of: task) }
+                    }
+                    .id(template)
+                }
+                if kind == .tasks {
+                    SubtasksCard(task: task, store: store, run: run)
+                }
                 if task.scheduledDate != nil {
                     durationCard
                     anchorCard
                 }
-                if sections.section(of: task)?.keepsMemory == true {
-                    memoryCard
+                if let section, section.keepsMemory || section.asksReview {
+                    memoryCard(section)
                 }
                 sectionCard
                 if kind == .tasks || kind == .memory {
@@ -98,7 +108,9 @@ struct TaskDetailView: View {
             }
         }
         .sheet(isPresented: $reviewing) {
-            ReviewSheet(task: task) { review, note in run { try store.complete(task, review: review, note: note) } }
+            ReviewSheet(task: task, takesPhotos: sections.section(of: task)?.template?.takesPhotos == true) { review, note in
+                run { try store.complete(task, review: review, note: note) }
+            }
         }
         .confirmationDialog("Supprimer « \(task.title) » ?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Supprimer", role: .destructive) {
@@ -266,14 +278,15 @@ struct TaskDetailView: View {
         .card()
     }
 
-    /// Mémoire : avis et commentaire, ou terminer avec un avis (ADR-014).
-    private var memoryCard: some View {
+    /// Mémoire : avis et commentaire, ou terminer avec un avis (ADR-014). Une liste simple se
+    /// termine sans avis ; un voyage ou une recette garde ses photos (ADR-016).
+    private func memoryCard(_ section: TaskSection) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             cardTitle("Mémoire")
             if task.isDone {
                 HStack(spacing: 8) {
                     Image(systemName: task.review?.symbol ?? "checkmark")
-                    Text(task.review?.label ?? "Sans avis")
+                    Text(task.review?.label ?? (section.asksReview ? "Sans avis" : "Fait"))
                     if let done = task.completedAt {
                         Text("· \(done.formatted(date: .abbreviated, time: .omitted))")
                             .foregroundStyle(Palette.textTertiary)
@@ -287,14 +300,23 @@ struct TaskDetailView: View {
                         .foregroundStyle(Palette.textSecondary)
                 }
                 FlowLayout(spacing: 6) {
-                    Button("Modifier l'avis") { reviewing = true }
-                        .buttonStyle(PillButtonStyle())
+                    if section.asksReview {
+                        Button("Modifier l'avis") { reviewing = true }
+                            .buttonStyle(PillButtonStyle())
+                    }
                     Button("Remettre à faire") { run { try store.toggleDone(task) } }
                         .buttonStyle(PillButtonStyle())
                 }
-            } else {
-                Button("C'est fait…") { reviewing = true }
+            } else if section.asksReview {
+                Button(section.kind == .periods ? "Donner mon avis…" : "C'est fait…") { reviewing = true }
                     .buttonStyle(PillButtonStyle(prominent: true))
+            } else {
+                Button("Terminer") { run { try store.complete(task, review: nil, note: nil) } }
+                    .buttonStyle(PillButtonStyle(prominent: true))
+            }
+            if section.template?.takesPhotos == true {
+                PhotoStrip(taskId: task.id)
+                    .padding(.top, 4)
             }
         }
         .card()

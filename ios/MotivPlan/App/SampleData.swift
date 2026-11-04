@@ -23,6 +23,8 @@ enum SampleData {
             let passport = try store.capture("Renouveler le passeport", source: .manual)
             try store.setNotes("Photo d'identité + justificatif de domicile.", of: passport)
             try store.capture("Lire l'article sur le sommeil", source: .widget)
+            // À trier de la Mémoire (ADR-016) : une envie dictée à Siri.
+            try store.capture("La série coréenne de Léa", source: .siri, space: .memory)
 
             func add(_ title: String, to section: String, tag: TaskTag? = nil) throws -> TaskItem {
                 let task = try store.capture(title, source: .manual)
@@ -45,6 +47,11 @@ enum SampleData {
             try store.setDueDate(store.endOfThisWeek, of: report)
             try store.setDuration(90, of: report)
             try store.schedule(report, on: today)
+            // Une tâche découpée en étapes (ADR-016).
+            let figures = try store.addSubtask("Rassembler les chiffres", to: report)
+            try store.addSubtask("Rédiger la synthèse", to: report)
+            try store.addSubtask("Relire avec Paul", to: report)
+            try store.toggleSubtask(figures.id, of: report)
             let bank = try add("Appeler la banque", to: "Ponctuelles", tag: .urgent)
             try store.schedule(bank, on: today)
             let meeting = try add("Point d'équipe", to: "Ponctuelles", tag: .travail)
@@ -65,18 +72,27 @@ enum SampleData {
             if let start = DayKeys.adding(17, to: today), let end = DayKeys.adding(21, to: today) {
                 let lisbon = try add("Lisbonne", to: "Voyages")
                 try store.setPeriod(start: start, end: end, of: lisbon)
+                try store.setField("place", to: "Portugal", of: lisbon)
             }
             if let start = DayKeys.adding(4, to: today), let end = DayKeys.adding(5, to: today) {
                 let sea = try add("Week-end à la mer", to: "Voyages")
                 try store.setPeriod(start: start, end: end, of: sea)
             }
-            _ = try add("The Bear, saison 3", to: "Films et séries", tag: .detente)
-            _ = try add("Dune, deuxième partie", to: "Films et séries", tag: .detente)
+            let bear = try add("The Bear, saison 3", to: "Films et séries", tag: .detente)
+            try store.setField("format", to: "Série", of: bear)
+            try store.setField("genre", to: "Drame", of: bear)
+            try store.setField("platform", to: "Disney+", of: bear)
+            try store.setField("summary", to: "Un chef reprend la sandwicherie familiale à Chicago.", of: bear)
+            let dune = try add("Dune, deuxième partie", to: "Films et séries", tag: .detente)
+            try store.setField("format", to: "Film", of: dune)
+            try store.setField("genre", to: "Science-fiction", of: dune)
             let seen = try add("Past Lives", to: "Films et séries")
             try store.complete(seen, review: .aime, note: "Tout en retenue, très beau.")
             let meh = try add("Rebel Moon", to: "Films et séries")
             try store.complete(meh, review: .pasAime, note: nil)
             let curry = try add("Curry de lentilles corail", to: "Recettes")
+            try store.setField("ingredients", to: "200 g de lentilles corail\n1 boîte de lait de coco\n1 oignon\nCurry, gingembre", of: curry)
+            try store.setField("steps", to: "Faire revenir l'oignon\nAjouter les épices\nCuire les lentilles 20 min dans le lait de coco", of: curry)
             try store.complete(curry, review: .aime, note: "Ajouter du citron vert à la fin.")
 
             // Reste de la semaine, pour la vue Semaine.

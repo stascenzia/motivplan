@@ -56,6 +56,12 @@ struct TaskRow: View {
             text = text + Text(" · Fait \(DayLabel.since(last, today: today))")
                 .foregroundStyle(Palette.textTertiary)
         }
+        if let steps = SubtaskLabel.progress(task.subtasks) {
+            text = text + Text(" · \(steps)").foregroundStyle(Palette.textTertiary)
+        }
+        if let summary = TemplateFields.summary(of: task) {
+            text = text + Text(" · \(summary)").foregroundStyle(Palette.textTertiary)
+        }
         return text
     }
 
@@ -108,6 +114,7 @@ struct MemoryRow: View {
                 HStack(spacing: 6) {
                     if let review = task.review { Text(review.label) }
                     if let done = task.completedAt { Text(DayLabel.since(done, today: today)) }
+                    if let summary = TemplateFields.summary(of: task) { Text(summary).lineLimit(1) }
                 }
                 .font(.meta)
                 .foregroundStyle(Palette.textTertiary)

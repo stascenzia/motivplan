@@ -24,6 +24,13 @@ final class ScreenshotTests: XCTestCase {
         snapshot(app, "03-detail-ancre")
         app.navigationBars.buttons.element(boundBy: 0).tap()
 
+        // Tâche découpée en étapes (ADR-016).
+        element(app, "Finir le rapport trimestriel").tap()
+        XCTAssertTrue(app.navigationBars["Tâche"].waitForExistence(timeout: 15))
+        XCTAssertTrue(element(app, "Rédiger la synthèse").waitForExistence(timeout: 15))
+        snapshot(app, "07-detail-etapes")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+
         app.buttons["Réglages"].tap()
         XCTAssertTrue(app.navigationBars["Réglages"].waitForExistence(timeout: 15))
         snapshot(app, "04-reglages")
@@ -128,11 +135,24 @@ final class ScreenshotTests: XCTestCase {
         app.buttons["tab-Mémoire"].tap()
 
         XCTAssertTrue(element(app, "Lait d'avoine").waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["memory-copy-reminders"].waitForExistence(timeout: 15))
         snapshot(app, "51-memoire-courses")
+
+        // « À trier » de la Mémoire (ADR-016) : les envies dictées à Siri.
+        element(app, "À trier").tap()
+        XCTAssertTrue(element(app, "La série coréenne").waitForExistence(timeout: 15))
+        snapshot(app, "50-memoire-a-trier")
 
         element(app, "Films et séries").tap()
         XCTAssertTrue(element(app, "The Bear").waitForExistence(timeout: 15))
         snapshot(app, "52-memoire-films")
+
+        // Fiche d'un film : les champs du modèle.
+        element(app, "The Bear").tap()
+        XCTAssertTrue(app.navigationBars["Tâche"].waitForExistence(timeout: 15))
+        snapshot(app, "56-fiche-film")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(element(app, "The Bear").waitForExistence(timeout: 15))
         app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Mémoire ·")).firstMatch.tap()
         XCTAssertTrue(element(app, "Past Lives").waitForExistence(timeout: 15))
         snapshot(app, "53-memoire-avis")
@@ -167,6 +187,38 @@ final class ScreenshotTests: XCTestCase {
         app.buttons["new-task-add"].tap()
         XCTAssertTrue(element(app, "Rappeler le garage").waitForExistence(timeout: 15))
         snapshot(app, "06-apres-creation")
+
+        // Onglet Mémoire du « + » (ADR-016) : la liste choisie décide du formulaire.
+        plus.tap()
+        let memoryTab = app.buttons["new-tab-memory"]
+        XCTAssertTrue(memoryTab.waitForExistence(timeout: 15))
+        memoryTab.tap()
+        let films = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Films et séries")).firstMatch
+        XCTAssertTrue(films.waitForExistence(timeout: 15))
+        films.tap()
+        XCTAssertTrue(element(app, "Science-fiction").waitForExistence(timeout: 15))
+        snapshot(app, "08-nouvelle-envie-film")
+        app.buttons["Annuler"].tap()
+    }
+
+    /// Le widget Mémoire ouvre `motivplan://capture?space=memory` : l'envie part dans la Mémoire.
+    @MainActor
+    func testMemoryWidgetDeepLink() throws {
+        let app = launch()
+        XCTAssertTrue(app.buttons["tab-Planning"].waitForExistence(timeout: 30))
+        app.open(URL(string: "motivplan://capture?space=memory")!)
+
+        let field = app.textFields["capture-field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 15))
+        snapshot(app, "22-capture-memoire")
+        field.tap()
+        field.typeText("Un resto japonais\n")
+        XCTAssertTrue(element(app, "Un resto japonais").waitForExistence(timeout: 15))
+        app.buttons["Fermer"].tap()
+
+        app.buttons["tab-Mémoire"].tap()
+        element(app, "À trier").tap()
+        XCTAssertTrue(element(app, "Un resto japonais").waitForExistence(timeout: 15))
     }
 
     /// Le widget ouvre `motivplan://capture` : capture plein écran, clavier levé, source « widget ».

@@ -10,7 +10,7 @@ import UIKit
 struct MotivPlanApp: App {
     private let provider: StoreProvider
     private let sync: SyncCoordinator?
-    @State private var captureRequested = false
+    @State private var deepLink: DeepLink?
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .light
 
     init() {
@@ -38,11 +38,9 @@ struct MotivPlanApp: App {
             Group {
                 switch provider.result {
                 case .success(let container):
-                    RootView(captureRequested: $captureRequested)
+                    RootView(deepLink: $deepLink)
                         .onOpenURL { url in
-                            if url.scheme == AppGroup.urlScheme, url.host() == "capture" {
-                                captureRequested = true
-                            }
+                            deepLink = DeepLink(url: url)
                         }
                         .modelContainer(container)
                         .environment(sync)
