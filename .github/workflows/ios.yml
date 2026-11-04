@@ -49,9 +49,14 @@ jobs:
       - name: Tests MotivPlanCore
         # La migration dans son propre processus : SwiftData garde l'état des schémas déjà
         # ouverts, et un store d'une ancienne version ouvert après des stores en v3 fait planter.
-        env:
-          SWIFT_BACKTRACE: enable=yes,sanitize=no,interactive=no,color=no
         run: |
+          # Diagnostic : pile d'appels du plantage de la migration, sous lldb.
+          swift build --package-path Packages/MotivPlanCore --build-tests
+          BIN=$(swift build --package-path Packages/MotivPlanCore --show-bin-path)
+          HELPER="$(dirname "$(xcrun --find swift)")/../libexec/swift/pm/swiftpm-testing-helper"
+          ls -la "$HELPER" || true
+          lldb --batch -o run -k "bt 60" -k quit -- "$HELPER" --test-bundle-path "$BIN/MotivPlanCorePackageTests.xctest" \
+            --testing-library swift-testing --filter MigrationTests || true
           swift test --package-path Packages/MotivPlanCore --no-parallel --filter MigrationTests
           swift test --package-path Packages/MotivPlanCore --no-parallel --skip MigrationTests
       - name: Rapport de plantage des tests MotivPlanCore
