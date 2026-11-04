@@ -55,7 +55,10 @@ jobs:
           BIN=$(swift build --package-path Packages/MotivPlanCore --show-bin-path)
           HELPER="$(dirname "$(xcrun --find swift)")/../libexec/swift/pm/swiftpm-testing-helper"
           ls -la "$HELPER" || true
-          lldb --batch -o run -k "bt 60" -k quit -- "$HELPER" --test-bundle-path "$BIN/MotivPlanCorePackageTests.xctest/Contents/MacOS/MotivPlanCorePackageTests" \
+          FW="$(xcode-select -p)/Platforms/MacOSX.platform/Developer/Library/Frameworks"
+          LIB="$(xcode-select -p)/Platforms/MacOSX.platform/Developer/usr/lib"
+          lldb --batch -o "settings set target.env-vars DYLD_FRAMEWORK_PATH=$FW DYLD_LIBRARY_PATH=$LIB" \
+            -o run -k "bt 60" -k quit -- "$HELPER" --test-bundle-path "$BIN/MotivPlanCorePackageTests.xctest/Contents/MacOS/MotivPlanCorePackageTests" \
             --testing-library swift-testing --filter MigrationTests || true
           swift test --package-path Packages/MotivPlanCore --no-parallel --filter MigrationTests
           swift test --package-path Packages/MotivPlanCore --no-parallel --skip MigrationTests
