@@ -48,6 +48,25 @@ jobs:
       - run: xcodegen generate
       - name: Tests MotivPlanCore
         run: swift test --package-path Packages/MotivPlanCore --no-parallel
+      - name: Rapport de plantage des tests MotivPlanCore
+        if: failure()
+        run: |
+          # Un précondition de SwiftData tue le processus sans message : la pile est dans le rapport.
+          for f in $(ls -t ~/Library/Logs/DiagnosticReports/*.ips 2>/dev/null | head -2); do
+            echo "== $f"
+            python3 - "$f" <<'PY'
+          import json, sys
+          lines = open(sys.argv[1]).read().split("\n", 1)
+          report = json.loads(lines[1])
+          print(report.get("exception"), report.get("termination", {}).get("indicator"))
+          for t in report.get("threads", []):
+              if t.get("triggered"):
+                  images = report.get("usedImages", [])
+                  for fr in t.get("frames", [])[:40]:
+                      name = images[fr["imageIndex"]].get("name", "?") if fr.get("imageIndex") is not None else "?"
+                      print(name, fr.get("symbol", "?"), fr.get("sourceFile", ""), fr.get("sourceLine", ""))
+          PY
+          done
       - name: Build + tests d'interface (simulateur, sans signature)
         run: |
           # Premier iPhone disponible sur le runtime iOS le plus récent.
