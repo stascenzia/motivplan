@@ -45,6 +45,11 @@ class Task(SyncedMixin, Base):
     # Période (section de type « periods », ADR-015) : premier et dernier jour inclus.
     start_date: Mapped[date | None] = mapped_column(Date)
     end_date: Mapped[date | None] = mapped_column(Date)
+    # Espace d'une capture sans section (ADR-016) : « tasks » ou « memory ».
+    space: Mapped[str | None] = mapped_column(String(16))
+    # Sous-tâches et champs du modèle de section, en JSON : ils voyagent avec la tâche (ADR-016).
+    subtasks: Mapped[str | None] = mapped_column(Text)
+    fields: Mapped[str | None] = mapped_column(Text)
 
 
 class TaskSection(SyncedMixin, Base):
@@ -61,6 +66,8 @@ class TaskSection(SyncedMixin, Base):
     repeat: Mapped[str] = mapped_column(String(16))
     # Type de la section (ADR-015) ; NULL pour une section d'avant la v2, déduit par le client.
     kind: Mapped[str | None] = mapped_column(String(16))
+    # Modèle d'une section de la Mémoire (ADR-016) ; NULL pour une section à faire.
+    template: Mapped[str | None] = mapped_column(String(16))
 
 
 class WorkSession(SyncedMixin, Base):

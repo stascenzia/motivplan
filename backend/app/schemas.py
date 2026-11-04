@@ -8,6 +8,8 @@ Tag = Literal["urgent", "travail", "medium", "detente"]
 Review = Literal["aime", "bof", "pas_aime"]
 Repeat = Literal["none", "daily", "permanent"]
 Kind = Literal["tasks", "memory", "checklist", "periods"]
+Space = Literal["tasks", "memory"]
+Template = Literal["courses", "film", "recette", "voyage", "liste"]
 Status = Literal["inbox", "scheduled", "done", "archived"]
 Source = Literal["manual", "siri", "widget"]
 
@@ -40,6 +42,10 @@ class TaskIn(SyncedRecord):
     review_note: str | None = None
     start_date: date | None = None
     end_date: date | None = None
+    space: Space | None = None
+    # JSON produit par le client, stocké tel quel (ADR-016).
+    subtasks: str | None = None
+    fields: str | None = None
 
     @model_validator(mode="after")
     def anchor_needs_time(self) -> Self:
@@ -67,6 +73,7 @@ class SectionIn(SyncedRecord):
     keeps_memory: bool = False
     repeat: Repeat = "none"
     kind: Kind | None = None
+    template: Template | None = None
 
 
 class SectionOut(SectionIn):

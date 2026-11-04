@@ -185,6 +185,25 @@ Une entrée par décision structurante. Format court : contexte, décision, cons
 
 ---
 
+## ADR-016 — Capture séparée, sous-tâches, modèles de la Mémoire, widgets d'affichage
+
+**Date** : 2026-11-04 · **Statut** : figée
+
+**Contexte** : nouvelles idées de l'utilisateur (`docs/retours-v1.md`, « Idées pour la Mémoire », « Idées sur les tâches et la capture », « Widgets et Siri ») : séparer tâches et mémoire dès la capture, découper une tâche en étapes, donner à chaque liste de la Mémoire ses propres champs, voir sa journée sur l'écran verrouillé et sa semaine sur l'écran d'accueil.
+
+**Décision** :
+- **Deux « À trier »** : une capture sans section porte un espace (`spaceRaw` : nul pour la boîte, `memory` pour la Mémoire). Siri a deux raccourcis (« Capturer », « Garder en mémoire »), le widget de capture deux zones en taille moyenne et un widget Mémoire à part. Une entrée rangée prend l'espace de sa section ; retirée de sa section, elle revient dans le bon « À trier ». Le « + » a deux onglets, Tâche et Mémoire.
+- **Sous-tâches** : une liste ordonnée d'étapes (`Subtask` : id, titre, fait), rangée dans la tâche en JSON (`subtasksRaw`). Pas de modèle à part : les étapes se synchronisent avec leur tâche, sous la même règle « dernière écriture gagnante » (ADR-009). Cocher toutes les étapes ne termine pas la tâche.
+- **Modèles de section** (`SectionTemplate`) : Courses, Films et séries, Recettes, Voyages, Liste simple. Le modèle décide du type d'ADR-015, de l'avis (films, recettes, voyages oui ; courses et liste simple non) et des photos (voyages, recettes). On crée autant de sections qu'on veut à partir d'un modèle ; un nouveau modèle s'ajoute dans le code. Les valeurs des champs (genre, plateforme, résumé, lieu, ingrédients, étapes) sont rangées dans la tâche en JSON (`fieldsRaw`, clés stables) ; leur présentation (libellés, choix proposés) vit dans l'app. Une section d'avant la v3 sans modèle enregistré le déduit de son type et de son nom (une liste mémoire inconnue devient une liste simple).
+- **Avis** : cocher un élément d'une section qui demande l'avis ouvre la fenêtre d'avis, partout (journée, boîte, Mémoire) ; il reste modifiable depuis la fiche.
+- **Photos** : gardées sur l'iPhone, un dossier par entrée dans l'espace de l'app. Ni synchronisées ni sauvegardées par le serveur pour l'instant (lot 15).
+- **Courses vers Rappels** : « Copier pour Rappels » met les articles à acheter dans le presse-papiers, un par ligne ; collés dans une liste de Rappels, chaque ligne devient un rappel.
+- **Widgets d'affichage** : un rectangle d'écran verrouillé (tâche en cours ou suivante, progression du jour) et un grand widget Semaine. L'app écrit un instantané calculé (`WidgetSnapshot`, deux semaines) dans les UserDefaults de l'App Group en passant au premier plan ou en le quittant ; le widget le lit sans ouvrir le store, qui garde un seul écrivain (ADR-006). Toucher le widget ouvre la journée ou le calendrier. Sans App Group (installation qui le retire, ADR-013), le widget invite à ouvrir l'app.
+
+**Conséquences** : schéma SwiftData `SchemaV3` (champs facultatifs `spaceRaw`, `subtasksRaw`, `fieldsRaw` sur la tâche, `templateRaw` sur la section), migration légère depuis la v2, testée sur un store écrit sur disque. Backend : colonnes `tasks.space`, `tasks.subtasks`, `tasks.fields`, `sections.template` (migration Alembic 0003), dans `POST /sync` ; un espace ou un modèle inconnu est refusé. Les sections fournies portent leur modèle.
+
+---
+
 ## Journal du spike Siri hors-ligne (lot 0)
 
 À remplir après le test sur appareil : modèle d'iPhone, version d'iOS, résultat verrouillé, résultat mode avion (phrase puis dictée), titres français qui ont été filtrés par Siri.

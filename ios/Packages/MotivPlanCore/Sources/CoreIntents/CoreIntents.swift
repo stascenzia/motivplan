@@ -47,6 +47,46 @@ public struct AddTaskIntent: AppIntent {
     }
 }
 
+/// Capture Siri d'un élément de mémoire (ADR-016) : un film, une recette, une idée de voyage.
+/// Même fonctionnement que `AddTaskIntent`, vers « À trier » de la Mémoire.
+public struct AddMemoryIntent: AppIntent {
+    public static let title: LocalizedStringResource = "Garder en mémoire"
+    public static let description = IntentDescription("Garde un film, une recette ou une envie dans la Mémoire de MotivPlan.")
+
+    @available(iOS 26.0, macOS 26.0, *)
+    public static var supportedModes: IntentModes { .background }
+
+    @Parameter(title: "Quoi", requestValueDialog: IntentDialog("Qu'est-ce que je garde en mémoire ?"))
+    public var memoryTitle: String
+
+    @Dependency private var provider: StoreProvider
+
+    public init() {}
+
+    public init(memoryTitle: String) {
+        self.memoryTitle = memoryTitle
+    }
+
+    public func perform() async throws -> some IntentResult & ProvidesDialog {
+        guard let container = provider.container else {
+            throw AddTaskError.storeUnavailable
+        }
+        let spoken = memoryTitle
+        let saved: String? = try await MainActor.run {
+            let store = TaskStore(context: container.mainContext)
+            do {
+                return try store.capture(spoken, source: .siri, space: .memory).title
+            } catch TaskStore.StoreError.emptyTitle {
+                return nil
+            }
+        }
+        guard let saved else {
+            return .result(dialog: "Je n'ai rien entendu à garder.")
+        }
+        return .result(dialog: "Gardé en mémoire : \(saved)")
+    }
+}
+
 enum AddTaskError: Error, CustomLocalizedStringResourceConvertible {
     case storeUnavailable
 

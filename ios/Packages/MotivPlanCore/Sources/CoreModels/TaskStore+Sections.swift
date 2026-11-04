@@ -14,7 +14,8 @@ extension TaskStore {
                 context.insert(TaskSection(
                     name: preset.name, symbol: preset.symbol, sortIndex: index * OrderIndex.step,
                     defaultDuration: preset.defaultDuration, isPlannable: preset.isPlannable,
-                    keepsMemory: preset.keepsMemory, repeatRule: preset.repeatRule, kind: preset.kind, now: now()))
+                    keepsMemory: preset.keepsMemory, repeatRule: preset.repeatRule, kind: preset.kind,
+                    template: preset.template, now: now()))
             }
             try save()
         }
@@ -33,19 +34,22 @@ extension TaskStore {
     }
 
     /// Crée une section. Hors du type « À faire », les règles suivent le type (ADR-015) : pas de
-    /// journée ni de répétition, et la mémoire pour le seul type `memory`.
+    /// journée ni de répétition, et la mémoire pour le seul type `memory`. Un modèle (ADR-016)
+    /// décide du type.
     @discardableResult
     public func createSection(name: String, symbol: String = "folder", defaultDuration: Minutes? = nil,
                               isPlannable: Bool = true, keepsMemory: Bool = false,
-                              repeatRule: SectionRepeat = .none, kind: SectionKind = .tasks) throws -> TaskSection {
+                              repeatRule: SectionRepeat = .none, kind: SectionKind = .tasks,
+                              template: SectionTemplate? = nil) throws -> TaskSection {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw StoreError.emptyTitle }
+        let kind = template?.kind ?? kind
         let rules = Self.rules(kind: kind, isPlannable: isPlannable, keepsMemory: keepsMemory, repeatRule: repeatRule)
         let last = try sections().map(\.sortIndex).max()
         let section = TaskSection(
             name: trimmed, symbol: symbol, sortIndex: (last ?? 0) + OrderIndex.step,
             defaultDuration: defaultDuration, isPlannable: rules.isPlannable, keepsMemory: rules.keepsMemory,
-            repeatRule: rules.repeatRule, kind: kind, now: now())
+            repeatRule: rules.repeatRule, kind: kind, template: kind.isMemorySpace ? template : nil, now: now())
         context.insert(section)
         try save()
         return section
@@ -53,14 +57,15 @@ extension TaskStore {
 
     /// Modifie une section. Changer ses règles ne déplace pas les tâches existantes, sauf une section
     /// qui ne se pose plus dans la journée : ses tâches non faites retournent dans la section.
-    /// `kind` à `nil` garde le type actuel.
+    /// `kind` à `nil` garde le type actuel ; un modèle décide du type.
     public func updateSection(_ section: TaskSection, name: String, symbol: String,
                               defaultDuration: Minutes?, isPlannable: Bool, keepsMemory: Bool,
-                              repeatRule: SectionRepeat, kind: SectionKind? = nil) throws {
+                              repeatRule: SectionRepeat, kind: SectionKind? = nil,
+                              template: SectionTemplate? = nil) throws {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw StoreError.emptyTitle }
         if let defaultDuration, defaultDuration < Durations.minimum { throw StoreError.durationTooShort }
-        let kind = kind ?? section.kind
+        let kind = template?.kind ?? kind ?? section.kind
         let rules = Self.rules(kind: kind, isPlannable: isPlannable, keepsMemory: keepsMemory, repeatRule: repeatRule)
         let wasDayPlannable = section.isDayPlannable
         let kindChanged = kind != section.kind
@@ -71,7 +76,18 @@ extension TaskStore {
         section.keepsMemory = rules.keepsMemory
         section.repeatRaw = rules.repeatRule.rawValue
         section.kindRaw = kind.rawValue
+        if !kind.isMemorySpace {
+            section.templateRaw = nil
+        } else if let template {
+            section.templateRaw = template.rawValue
+        }
         touch(section)
+        // Les entrées suivent l'espace de leur section.
+        let space = kind.isMemorySpace ? TaskSpace.memory.rawValue : nil
+        for task in try tasks(in: section) + memory(of: section) where task.spaceRaw != space {
+            task.spaceRaw = space
+            touch(task)
+        }
         if wasDayPlannable && !section.isDayPlannable && (kindChanged || !rules.isPlannable) {
             for task in try tasks(in: section) where task.scheduledDate != nil && !task.isDone {
                 try unschedule(task)
@@ -105,11 +121,13 @@ extension TaskStore {
         return checked.count
     }
 
-    /// Supprime une section ; ses tâches retournent dans « À trier », rien n'est perdu.
+    /// Supprime une section ; ses tâches retournent dans « À trier » de son espace, rien n'est perdu.
     public func deleteSection(_ section: TaskSection) throws {
         guard section.deletedAt == nil else { return }
+        let space = section.kind.isMemorySpace ? TaskSpace.memory.rawValue : nil
         for task in try tasks(in: section) + memory(of: section) {
             task.sectionId = nil
+            task.spaceRaw = space
             touch(task)
         }
         section.deletedAt = now()

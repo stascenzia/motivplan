@@ -31,6 +31,12 @@ public struct TaskDTO: Codable, Sendable, Equatable {
     /// Période : `yyyy-MM-dd`, bornes incluses.
     public var startDate: String?
     public var endDate: String?
+    /// `tasks` ou `memory` pour une capture sans section ; absent : la boîte de réception.
+    public var space: String?
+    /// Sous-tâches, en JSON (`[Subtask]`).
+    public var subtasks: String?
+    /// Champs du modèle de la section, en JSON (`[String: String]`). Les photos restent sur l'iPhone.
+    public var fields: String?
     /// Présent seulement dans les réponses.
     public var serverUpdatedAt: Date?
 }
@@ -50,6 +56,8 @@ public struct SectionDTO: Codable, Sendable, Equatable {
     public var `repeat`: String
     /// `tasks`, `memory`, `checklist`, `periods` ; absent pour une section d'avant la v2.
     public var kind: String?
+    /// Modèle d'une section de la Mémoire (ADR-016) ; absent pour une section à faire.
+    public var template: String?
     public var serverUpdatedAt: Date?
 }
 

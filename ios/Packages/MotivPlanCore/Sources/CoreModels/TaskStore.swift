@@ -32,12 +32,14 @@ public struct TaskStore {
 
     // MARK: Capture et édition
 
-    /// Crée une tâche en boîte de réception.
+    /// Crée une entrée dans « À trier » : celui de la boîte de réception, ou celui de la Mémoire
+    /// (ADR-016).
     @discardableResult
-    public func capture(_ title: String, source: TaskSource) throws -> TaskItem {
+    public func capture(_ title: String, source: TaskSource, space: TaskSpace = .tasks) throws -> TaskItem {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw StoreError.emptyTitle }
         let task = TaskItem(title: trimmed, source: source, now: now())
+        task.spaceRaw = space == .memory ? space.rawValue : nil
         context.insert(task)
         try save()
         return task
@@ -48,12 +50,17 @@ public struct TaskStore {
     @discardableResult
     public func create(_ draft: TaskDraft, source: TaskSource = .manual) throws -> TaskItem {
         if let minutes = draft.durationMin, minutes < Durations.minimum { throw StoreError.durationTooShort }
-        let task = try capture(draft.title, source: source)
+        let task = try capture(draft.title, source: source, space: draft.space)
         let notes = draft.notes.trimmingCharacters(in: .whitespacesAndNewlines)
         task.notes = notes.isEmpty ? nil : notes
         task.tagRaw = draft.tag?.rawValue
         task.dueDate = draft.dueDate
         task.durationMin = draft.durationMin
+        task.subtasksRaw = Self.encode(draft.subtasks.compactMap { title in
+            let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : Subtask(title: trimmed)
+        })
+        task.fieldsRaw = Self.encode(fields: draft.fields)
         touch(task)
         let section = try sections().first { $0.id == draft.sectionId }
         try setSection(section, of: task)
@@ -102,13 +109,19 @@ public struct TaskStore {
         try commit(task)
     }
 
-    /// Range la tâche dans une section (`nil` : « À trier »). Une quotidienne est posée aujourd'hui
-    /// tout de suite ; une section non planifiable retire la tâche de la journée.
+    /// Range la tâche dans une section (`nil` : « À trier » de son espace). Une quotidienne est posée
+    /// aujourd'hui tout de suite ; une section non planifiable retire la tâche de la journée. Rangée,
+    /// l'entrée prend l'espace de sa section : retirée ensuite, elle revient dans le bon « À trier ».
     public func setSection(_ section: TaskSection?, of task: TaskItem) throws {
         guard section?.id != task.sectionId else { return }
+        let previous = try self.section(of: task)
         task.sectionId = section?.id
         touch(task)
+        if section == nil, previous?.kind.isMemorySpace == true {
+            task.spaceRaw = TaskSpace.memory.rawValue
+        }
         if let section {
+            task.spaceRaw = section.kind.isMemorySpace ? TaskSpace.memory.rawValue : nil
             if !section.isDayPlannable, task.scheduledDate != nil {
                 try unschedule(task)
             } else if section.repeatRule == .daily, task.scheduledDate == nil, !task.isDone {

@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 import TimelineEngine
 
-// Lecture des modèles courants (`SchemaV2`) : énumérations, vues moteur, requêtes `@Query`.
+// Lecture des modèles courants (`SchemaV3`) : énumérations, vues moteur, requêtes `@Query`.
 
 extension TaskSection {
     public var repeatRule: SectionRepeat {
@@ -12,6 +12,20 @@ extension TaskSection {
     public var kind: SectionKind {
         kindRaw.flatMap(SectionKind.init(rawValue:))
             ?? SectionKind.inferred(name: name, isPlannable: isPlannable, keepsMemory: keepsMemory)
+    }
+
+    /// Modèle d'une section de la Mémoire (ADR-016) ; `nil` pour une section à faire.
+    public var template: SectionTemplate? {
+        guard kind.isMemorySpace else { return nil }
+        if let stored = templateRaw.flatMap(SectionTemplate.init(rawValue:)), stored.kind == kind { return stored }
+        return SectionTemplate.inferred(kind: kind, name: name)
+    }
+
+    /// Terminer un élément ouvre l'avis : une section à faire qui garde la mémoire, ou un modèle
+    /// qui le demande (films, recettes, voyages).
+    public var asksReview: Bool {
+        if let template { return template.asksReview }
+        return keepsMemory
     }
 
     /// Ses tâches apparaissent dans le tiroir et se posent dans la journée. Un élément de mémoire
@@ -43,6 +57,33 @@ extension TaskItem {
     }
 
     public var isDone: Bool { status == .done }
+
+    /// Espace d'une capture sans section (ADR-016). Une entrée rangée suit sa section.
+    public var space: TaskSpace {
+        spaceRaw.flatMap(TaskSpace.init(rawValue:)) ?? .tasks
+    }
+
+    /// « À trier » de la boîte de réception : capture sans section, hors Mémoire.
+    public var isUnsortedTask: Bool { sectionId == nil && space == .tasks }
+
+    /// « À trier » de la Mémoire.
+    public var isUnsortedMemory: Bool { sectionId == nil && space == .memory }
+
+    /// Sous-tâches dans l'ordre (ADR-016). Vide si la tâche n'est pas découpée.
+    public var subtasks: [Subtask] {
+        guard let data = subtasksRaw?.data(using: .utf8) else { return [] }
+        return (try? JSONDecoder().decode([Subtask].self, from: data)) ?? []
+    }
+
+    /// Champs du modèle de la section : genre, plateforme, lieu, ingrédients…
+    public var fields: [String: String] {
+        guard let data = fieldsRaw?.data(using: .utf8) else { return [:] }
+        return (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:]
+    }
+
+    public func field(_ key: String) -> String? {
+        fields[key]
+    }
 
     /// Échéance dépassée : signalée sobrement, jamais en rouge (principe 2).
     public func isOverdue(today: DayKey) -> Bool {

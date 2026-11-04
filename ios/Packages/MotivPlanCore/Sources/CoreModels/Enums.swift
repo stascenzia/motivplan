@@ -56,3 +56,74 @@ public enum SectionKind: String, Sendable, Hashable, CaseIterable, Codable {
 public enum TaskSource: String, Sendable, Hashable, CaseIterable, Codable {
     case manual, siri, widget
 }
+
+/// Espace d'une capture sans section (ADR-016) : « À trier » de la boîte de réception ou de la
+/// Mémoire. Une entrée rangée prend l'espace de sa section.
+public enum TaskSpace: String, Sendable, Hashable, CaseIterable, Codable {
+    case tasks
+    case memory
+}
+
+/// Modèle d'une section de la Mémoire (ADR-016) : ses champs propres, son type, son avis.
+/// L'utilisateur crée autant de sections qu'il veut à partir d'un modèle ; un nouveau modèle
+/// s'ajoute dans le code.
+public enum SectionTemplate: String, Sendable, Hashable, CaseIterable, Codable {
+    /// Liste à cocher, copiable pour Rappels.
+    case courses
+    /// Film ou série : résumé, genre, plateforme.
+    case film
+    /// Recette : ingrédients et étapes.
+    case recette
+    /// Voyage : lieu, dates, photos à l'avis.
+    case voyage
+    /// Liste simple : un titre et une note.
+    case liste
+
+    public var kind: SectionKind {
+        switch self {
+        case .courses: .checklist
+        case .film, .recette, .liste: .memory
+        case .voyage: .periods
+        }
+    }
+
+    /// Terminer un élément ouvre l'avis.
+    public var asksReview: Bool {
+        switch self {
+        case .film, .recette, .voyage: true
+        case .courses, .liste: false
+        }
+    }
+
+    /// L'avis accepte des photos, gardées sur l'iPhone.
+    public var takesPhotos: Bool {
+        self == .voyage || self == .recette
+    }
+
+    /// Modèle d'une section d'avant la v3, d'après son type et son nom.
+    public static func inferred(kind: SectionKind, name: String) -> SectionTemplate? {
+        let lowered = name.lowercased()
+        switch kind {
+        case .tasks: return nil
+        case .checklist: return .courses
+        case .periods: return .voyage
+        case .memory:
+            if ["recette", "cuisine", "plat"].contains(where: { lowered.contains($0) }) { return .recette }
+            if ["film", "série", "serie", "ciné"].contains(where: { lowered.contains($0) }) { return .film }
+            return .liste
+        }
+    }
+}
+
+/// Étape d'une tâche découpée (ADR-016). Rangée dans la tâche, synchronisée avec elle.
+public struct Subtask: Codable, Sendable, Hashable, Identifiable {
+    public var id: UUID
+    public var title: String
+    public var isDone: Bool
+
+    public init(id: UUID = UUID(), title: String, isDone: Bool = false) {
+        self.id = id
+        self.title = title
+        self.isDone = isDone
+    }
+}

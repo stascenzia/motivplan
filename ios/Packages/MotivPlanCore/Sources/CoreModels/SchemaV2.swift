@@ -2,9 +2,9 @@ import Foundation
 import SwiftData
 import TimelineEngine
 
-/// Schéma courant (lot 11, ADR-015). Par rapport à la v1 : le type d'une section (`kindRaw`) et les
-/// dates d'une période (`startDate`, `endDate`). Champs facultatifs seulement : la migration depuis
-/// la v1 est légère, rien n'est recopié. Champs alignés sur le backend (`backend/app/models.py`).
+/// Schéma du lot 11 (ADR-015), figé depuis la v3 : il décrit les stores installés entre-temps.
+/// Par rapport à la v1 : le type d'une section (`kindRaw`) et les dates d'une période
+/// (`startDate`, `endDate`). Champs facultatifs seulement : la migration depuis la v1 est légère.
 public enum SchemaV2: VersionedSchema {
     public static var versionIdentifier: Schema.Version { Schema.Version(2, 0, 0) }
     public static var models: [any PersistentModel.Type] { [TaskItem.self, TaskSection.self, WorkSession.self] }
@@ -144,15 +144,3 @@ public enum SchemaV2: VersionedSchema {
         }
     }
 }
-
-public enum MotivPlanMigrationPlan: SchemaMigrationPlan {
-    public static var schemas: [any VersionedSchema.Type] { [SchemaV1.self, SchemaV2.self] }
-    /// v1 → v2 : trois champs facultatifs ajoutés, migration légère.
-    public static var stages: [MigrationStage] {
-        [.lightweight(fromVersion: SchemaV1.self, toVersion: SchemaV2.self)]
-    }
-}
-
-public typealias TaskItem = SchemaV2.TaskItem
-public typealias WorkSession = SchemaV2.WorkSession
-public typealias TaskSection = SchemaV2.TaskSection

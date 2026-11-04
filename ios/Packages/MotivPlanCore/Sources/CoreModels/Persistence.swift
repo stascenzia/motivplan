@@ -9,7 +9,7 @@ public enum Persistence {
     /// Sans conteneur de groupe, le store va dans l'espace propre de l'app ; seul l'app y écrit
     /// (ADR-006) et le widget ne lit rien, donc rien ne se perd.
     public static func makeContainer(inMemory: Bool = false) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: SchemaV2.self)
+        let schema = Schema(versionedSchema: SchemaV3.self)
         let configuration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: inMemory,

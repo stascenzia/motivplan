@@ -3,16 +3,26 @@ import SwiftData
 import Testing
 @testable import CoreModels
 
-/// Un store installé en v1 s'ouvre en v2 sans rien perdre (ADR-015).
+/// Un store installé en v1 ou en v2 s'ouvre dans le schéma courant sans rien perdre (ADR-015, ADR-016).
 @MainActor
 @Suite("Migration du schéma")
 struct MigrationTests {
-    @Test("Un store v1 sur disque s'ouvre en v2, données intactes, types déduits")
-    func v1StoreOpensInV2() throws {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("migration-\(UUID().uuidString).store")
+    private let now = Date(timeIntervalSince1970: 1_791_878_400)
+
+    private func temporaryStore() -> URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("migration-\(UUID().uuidString).store")
+    }
+
+    private func openCurrent(at url: URL) throws -> ModelContainer {
+        let schema = Schema(versionedSchema: SchemaV3.self)
+        return try ModelContainer(for: schema, migrationPlan: MotivPlanMigrationPlan.self,
+                                  configurations: [ModelConfiguration(schema: schema, url: url)])
+    }
+
+    @Test("Un store v1 sur disque s'ouvre en v3, données intactes, types et modèles déduits")
+    func v1StoreOpensInCurrent() throws {
+        let url = temporaryStore()
         defer { try? FileManager.default.removeItem(at: url) }
-        let now = Date(timeIntervalSince1970: 1_791_878_400)
         let filmsId = UUID()
         let taskId = UUID()
 
@@ -32,18 +42,52 @@ struct MigrationTests {
             try context.save()
         }
 
-        let schema = Schema(versionedSchema: SchemaV2.self)
-        let container = try ModelContainer(for: schema, migrationPlan: MotivPlanMigrationPlan.self,
-                                           configurations: [ModelConfiguration(schema: schema, url: url)])
-        let context = container.mainContext
+        let context = try openCurrent(at: url).mainContext
         let tasks = try context.fetch(FetchDescriptor<TaskItem>())
         #expect(tasks.map(\.id) == [taskId])
         #expect(tasks.first?.sectionId == filmsId)
         #expect(tasks.first?.source == .siri)
         #expect(tasks.first?.startDate == nil)
+        #expect(tasks.first?.subtasks.isEmpty == true)
 
         let sections = try context.fetch(TaskSection.orderedDescriptor)
         #expect(sections.map(\.kindRaw) == [nil, nil])
         #expect(sections.map(\.kind) == [.memory, .periods])
+        #expect(sections.map(\.template) == [.film, .voyage])
+    }
+
+    @Test("Un store v2 sur disque s'ouvre en v3 : périodes gardées, rien dans les nouveaux champs")
+    func v2StoreOpensInCurrent() throws {
+        let url = temporaryStore()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let tripsId = UUID()
+        let taskId = UUID()
+
+        do {
+            let schema = Schema(versionedSchema: SchemaV2.self)
+            let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
+            let context = container.mainContext
+            context.insert(SchemaV2.TaskSection(id: tripsId, name: "Trips", symbol: "airplane", sortIndex: 0,
+                                                defaultDuration: nil, isPlannable: false, keepsMemory: false,
+                                                repeatRule: .none, kind: .periods, now: now))
+            let trip = SchemaV2.TaskItem(id: taskId, title: "Lisbonne", source: .manual, now: now)
+            trip.sectionId = tripsId
+            trip.startDate = "2026-11-20"
+            trip.endDate = "2026-11-24"
+            context.insert(trip)
+            try context.save()
+        }
+
+        let context = try openCurrent(at: url).mainContext
+        let task = try #require(try context.fetch(FetchDescriptor<TaskItem>()).first)
+        #expect(task.id == taskId)
+        #expect(task.startDate == "2026-11-20")
+        #expect(task.endDate == "2026-11-24")
+        #expect(task.spaceRaw == nil)
+        #expect(task.fields.isEmpty)
+        let section = try #require(try context.fetch(TaskSection.orderedDescriptor).first)
+        #expect(section.kind == .periods)
+        #expect(section.templateRaw == nil)
+        #expect(section.template == .voyage)
     }
 }

@@ -197,3 +197,26 @@ def test_unknown_section_kind_is_refused(client: TestClient) -> None:
 def test_unknown_repeat_rule_is_refused(client: TestClient) -> None:
     response = client.post("/sync", json={"sections": [section(repeat="weekly")]}, headers=AUTH)
     assert response.status_code == 422
+
+
+def test_space_subtasks_fields_and_template_round_trip(client: TestClient) -> None:
+    films = section(name="Films", symbol="film", kind="memory", template="film")
+    dune = task(title="Dune", section_id=films["id"], space="memory",
+                fields='{"genre":"Science-fiction","platform":"Netflix"}')
+    idea = task(title="Une série coréenne", space="memory")
+    app = task(title="Finir l'appli", subtasks='[{"id":"7b0d","title":"Pousser sur git","isDone":false}]')
+    sync(client, sections=[films], tasks=[dune, idea, app])
+
+    assert client.get("/sections", headers=AUTH).json()[0]["template"] == "film"
+    stored = {t["title"]: t for t in client.get("/tasks", headers=AUTH).json()}
+    assert stored["Dune"]["fields"] == '{"genre":"Science-fiction","platform":"Netflix"}'
+    assert stored["Une série coréenne"]["space"] == "memory"
+    assert stored["Finir l'appli"]["subtasks"].startswith('[{"id":"7b0d"')
+    assert stored["Finir l'appli"]["space"] is None
+
+
+def test_unknown_space_or_template_is_refused(client: TestClient) -> None:
+    response = client.post("/sync", json={"tasks": [task(space="calendar")]}, headers=AUTH)
+    assert response.status_code == 422
+    response = client.post("/sync", json={"sections": [section(template="livres")]}, headers=AUTH)
+    assert response.status_code == 422
