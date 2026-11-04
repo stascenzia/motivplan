@@ -90,6 +90,4 @@ struct MigrationTests {
         #expect(section.templateRaw == nil)
         #expect(section.template == .voyage)
     }
-
-}
 }
