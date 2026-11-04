@@ -1,4 +1,5 @@
 import CoreModels
+import MemoryImport
 import SwiftData
 import SwiftUI
 import TimelineEngine
@@ -181,6 +182,23 @@ struct NewTaskSheet: View {
 
     @ViewBuilder
     private func memoryCards(section: TaskSection?) -> some View {
+        // Remplir la fiche d'un film par TMDB, une recette par des photos ou un texte (lot 15).
+        switch section?.template {
+        case .film:
+            TMDBSearchCard(query: draft.title, posterPath: draft.fields[TMDBMapping.posterKey]) { title, fields in
+                draft.title = title
+                draft.fields.merge(fields) { _, new in new }
+            }
+        case .recette:
+            RecipeImportCard { recipe in
+                if let title = recipe.title, draft.title.trimmingCharacters(in: .whitespaces).isEmpty {
+                    draft.title = title
+                }
+                draft.fields.merge(RecipeFields.values(of: recipe)) { _, new in new }
+            }
+        default:
+            EmptyView()
+        }
         if let template = section?.template, !template.fields.isEmpty {
             TemplateFieldsCard(fields: template.fields, values: draft.fields, immediate: true) { key, value in
                 draft.fields[key] = value

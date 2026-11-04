@@ -47,8 +47,9 @@ public enum SyncSettings {
 
 /// Mot de passe générique dans le trousseau, lisible après le premier déverrouillage
 /// (la synchro d'arrière-plan doit pouvoir le lire).
-enum Keychain {
-    static func read(service: String, account: String) -> String? {
+/// Sert aussi au jeton TMDB (ADR-017).
+public enum Keychain {
+    public static func read(service: String, account: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -62,7 +63,7 @@ enum Keychain {
         return String(data: data, encoding: .utf8)
     }
 
-    static func write(_ value: String, service: String, account: String) {
+    public static func write(_ value: String, service: String, account: String) {
         delete(service: service, account: account)
         let attributes: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -74,7 +75,7 @@ enum Keychain {
         SecItemAdd(attributes as CFDictionary, nil)
     }
 
-    static func delete(service: String, account: String) {
+    public static func delete(service: String, account: String) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

@@ -27,6 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: swift test --package-path ios/Packages/TimelineEngine
+      # Import dans la Mémoire (lot 15) : Foundation seule aussi.
+      - run: swift test --package-path ios/Packages/MemoryImport
 
   app:
     name: App (macOS)

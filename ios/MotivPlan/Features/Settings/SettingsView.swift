@@ -3,7 +3,7 @@ import SwiftUI
 import SyncClient
 import TimelineEngine
 
-/// Réglages : heure de départ du jour, synchronisation.
+/// Réglages : heure de départ du jour, jeton TMDB, synchronisation.
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(SyncCoordinator.self) private var sync: SyncCoordinator?
@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var serverText = SyncSettings.serverURL?.absoluteString ?? ""
     @State private var token = SyncSettings.token ?? ""
     @State private var invalidURL = false
+    @State private var tmdbToken = TMDBSettings.token ?? ""
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .light
 
     var body: some View {
@@ -35,6 +36,17 @@ struct SettingsView: View {
                         Text("Les durées suggérées se règlent dans chaque section, depuis la boîte de réception.")
                             .font(.callout)
                             .foregroundStyle(.secondary)
+                    }
+
+                    Section {
+                        SecureField("Jeton d'accès en lecture", text: $tmdbToken)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .accessibilityIdentifier("tmdb-token")
+                    } header: {
+                        Text("Films et séries")
+                    } footer: {
+                        Text("Facultatif et gratuit : remplit le résumé, le genre et la plateforme d'un film ou d'une série. Crée un compte sur themoviedb.org, puis Paramètres → API → « Jeton d'accès en lecture à l'API » (le long code qui commence par eyJ). Il est rangé dans le trousseau de l'iPhone.\n\n\(TMDBSettings.attribution)")
                     }
 
                     Section {
@@ -72,6 +84,7 @@ struct SettingsView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("OK") {
                         saveSync()
+                        TMDBSettings.token = tmdbToken
                         dismiss()
                     }
                 }

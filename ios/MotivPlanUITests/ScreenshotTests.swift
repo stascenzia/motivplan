@@ -201,6 +201,40 @@ final class ScreenshotTests: XCTestCase {
         app.buttons["Annuler"].tap()
     }
 
+    /// Recette collée depuis le « + » (lot 15) : découpée en ingrédients et étapes, relue, puis posée
+    /// dans le formulaire.
+    @MainActor
+    func testRecipeImport() throws {
+        let app = launch()
+        let plus = app.buttons["tab-capture"]
+        XCTAssertTrue(plus.waitForExistence(timeout: 30))
+        plus.tap()
+        let memoryTab = app.buttons["new-tab-memory"]
+        XCTAssertTrue(memoryTab.waitForExistence(timeout: 15))
+        memoryTab.tap()
+        let recipes = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Recettes")).firstMatch
+        XCTAssertTrue(recipes.waitForExistence(timeout: 15))
+        recipes.tap()
+
+        let paste = app.buttons["recipe-import-text"]
+        XCTAssertTrue(paste.waitForExistence(timeout: 15))
+        snapshot(app, "09-nouvelle-recette")
+        paste.tap()
+        let field = app.descendants(matching: .any)["recipe-paste"]
+        XCTAssertTrue(field.waitForExistence(timeout: 15))
+        field.tap()
+        field.typeText("Pâtes carbonara\n200 g de spaghetti\n2 jaunes d'œufs\nFaire cuire les pâtes dans une grande casserole d'eau salée.")
+        app.buttons["recipe-split"].tap()
+        XCTAssertTrue(app.buttons["recipe-use"].waitForExistence(timeout: 15))
+        snapshot(app, "10-relire-recette")
+        app.buttons["recipe-use"].tap()
+
+        let ingredients = app.descendants(matching: .any)["field-ingredients"]
+        XCTAssertTrue(ingredients.waitForExistence(timeout: 15))
+        XCTAssertTrue((ingredients.value as? String)?.contains("200 g de spaghetti") == true)
+        app.buttons["Annuler"].tap()
+    }
+
     /// Le widget Mémoire ouvre `motivplan://capture?space=memory` : l'envie part dans la Mémoire.
     @MainActor
     func testMemoryWidgetDeepLink() throws {

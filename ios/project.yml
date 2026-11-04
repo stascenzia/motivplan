@@ -23,6 +23,8 @@ packages:
     path: Packages/TimelineEngine
   MotivPlanCore:
     path: Packages/MotivPlanCore
+  MemoryImport:
+    path: Packages/MemoryImport
 
 targets:
   MotivPlan:
@@ -32,6 +34,7 @@ targets:
       - MotivPlan
     dependencies:
       - target: MotivPlanWidget
+      - target: MotivPlanShare
       - package: MotivPlanCore
         product: CoreModels
       - package: MotivPlanCore
@@ -39,6 +42,7 @@ targets:
       - package: MotivPlanCore
         product: SyncClient
       - package: TimelineEngine
+      - package: MemoryImport
     info:
       path: MotivPlan/Info.plist
       properties:
@@ -107,6 +111,41 @@ targets:
       base:
         # Isolation par défaut laissée à nonisolated : TimelineProvider n'est pas MainActor.
         PRODUCT_BUNDLE_IDENTIFIER: fr.ascenzia.motivplan.widget
+
+  # Partage d'une recette depuis une autre app (lot 15, ADR-017). Dépose une fiche dans l'App Group,
+  # sans ouvrir le store.
+  MotivPlanShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - MotivPlanShare
+    dependencies:
+      - package: MotivPlanCore
+        product: CoreModels
+      - package: MemoryImport
+    info:
+      path: MotivPlanShare/Info.plist
+      properties:
+        CFBundleDisplayName: MotivPlan
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsImageWithMaxCount: 10
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+    entitlements:
+      path: MotivPlanShare/MotivPlanShare.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.fr.ascenzia.motivplan
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: fr.ascenzia.motivplan.share
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
 
   MotivPlanUITests:
     type: bundle.ui-testing

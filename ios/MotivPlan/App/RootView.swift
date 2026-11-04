@@ -84,8 +84,12 @@ struct RootView: View {
                 try? store.ensureDefaultSections()
                 _ = try? store.rollover()
                 refreshWidgets()
-                // Synchro au passage au premier plan, après le report (plan, §Synchronisation).
-                Task { await sync?.syncNow() }
+                // Synchro au passage au premier plan, après le report (plan, §Synchronisation),
+                // et les recettes partagées depuis d'autres apps (ADR-017).
+                Task {
+                    await SharedImports.importPending(into: context)
+                    await sync?.syncNow()
+                }
             case .inactive:
                 refreshWidgets()
             case .background:

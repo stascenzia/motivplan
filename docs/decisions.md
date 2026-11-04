@@ -204,6 +204,25 @@ Une entrée par décision structurante. Format court : contexte, décision, cons
 
 ---
 
+## ADR-017 — Import dans la Mémoire sans IA payante : TMDB, lecture des photos, partage
+
+**Date** : 2026-11-04 · **Statut** : figée
+
+**Contexte** : l'utilisateur veut surtout de l'aide pour la Mémoire : retrouver le résumé d'un film ou d'une série à partir de son nom, et transformer une photo, une capture ou un texte de recette (la plupart viennent de Picnic) en ingrédients et étapes (`docs/retours-v1.md`, « IA pour la Mémoire »). Contraintes : coût nul ou presque, pas de serveur en ligne pour l'instant, et un iPhone 14, donc sans l'IA intégrée d'Apple (réservée à l'iPhone 15 Pro et plus récents).
+
+**Décision** :
+- **Pas de modèle de langage.** Ni API payante, ni offre gratuite d'un tiers (Gemini) : on revient sur cette option seulement si les règles ne suffisent pas à l'usage.
+- **Films et séries : TMDB.** L'app cherche le titre saisi sur TMDB (recherche « multi », en français), puis lit la fiche choisie avec ses plateformes d'abonnement en France, en une requête (`append_to_response=watch/providers`). Elle remplit le format, le genre, la plateforme, le résumé, l'identifiant TMDB et l'affiche. Les genres et les plateformes sont ramenés aux noms proposés par l'app (« Crime » → « Policier », « Disney Plus » → « Disney+ »). Tous les genres sont aussi gardés dans un champ `genres`, un par ligne, pour permettre plus tard plusieurs genres. L'affiche est gardée en cache sur l'iPhone.
+- **Jeton TMDB** : le « jeton d'accès en lecture » de l'utilisateur, collé dans les réglages, rangé dans le trousseau. Il n'est jamais dans le code (le dépôt est public), ni dans les journaux, ni dans la synchro. Sans jeton ou sans réseau, la fiche se remplit à la main comme avant. La mention exigée par TMDB figure dans les réglages, et « Données de TMDB » sous les résultats.
+- **Recettes : lecture du texte sur l'iPhone (Vision), puis découpage par règles** (paquet `MemoryImport`, Foundation seule, testé sous Windows et Linux). Les titres « Ingrédients », « Préparation », « Étapes » délimitent les parties ; une ligne avec une quantité est un ingrédient ; une étape commence par un numéro, « Étape N », ou une majuscule après un point. La disposition de Picnic est gérée : nom et quantité en colonnes (« Lentilles corail (200 g) »), numéros d'étape seuls, rubrique « Dans votre placard ». Plusieurs photos (les pages d'une recette) sont lues dans l'ordre puis découpées ensemble. Le résultat est **toujours relu** avant d'être posé dans la fiche.
+- **Couverts** : nouveau champ `servings` des recettes, lu par le découpage (« pour 4 personnes », « 4 couverts »). La fiche recalcule les quantités pour un autre nombre de couverts (première quantité de chaque ligne, arrondis de cuisine), sans changer la recette enregistrée.
+- **Pages web** : un lien partagé est lu par l'app. La plupart des sites de recettes décrivent leur recette pour les moteurs de recherche (schema.org `Recipe`), ce qui donne les ingrédients et les étapes sans IA. Sans cette description, seuls le titre de la page et le lien (champ `source`) restent.
+- **Extension de partage « MotivPlan »** : depuis Picnic, Safari ou Photos, une ou plusieurs images, un texte ou un lien. L'extension n'ouvre pas le store : elle dépose une fiche dans un dossier de l'App Group, puis l'app la transforme en recette dans la première section Recettes en passant au premier plan. Le store garde ainsi un seul écrivain (ADR-006). Sans App Group (installation qui le retire, ADR-013), l'extension renvoie vers « Importer une recette » dans l'app. Les images partagées deviennent les photos de la recette, gardées sur l'iPhone.
+
+**Conséquences** : aucun changement de schéma ni de backend : les nouveaux champs (`servings`, `source`, `tmdb`, `poster`, `genres`) vivent dans `fieldsRaw` (ADR-016) et se synchronisent avec lui. Nouveau paquet `MemoryImport`, testé dans le job Linux de la CI. Nouvelle cible d'extension, donc un identifiant d'app de plus à signer avec le compte Apple gratuit (trois en tout : app, widget, partage).
+
+---
+
 ## Journal du spike Siri hors-ligne (lot 0)
 
 À remplir après le test sur appareil : modèle d'iPhone, version d'iOS, résultat verrouillé, résultat mode avion (phrase puis dictée), titres français qui ont été filtrés par Siri.

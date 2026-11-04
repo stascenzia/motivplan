@@ -174,6 +174,9 @@ struct TemplateFieldsCard: View {
                         choices(field, options: options)
                     case .text(let prompt):
                         textField(field, prompt: prompt, multiline: false)
+                    case .number(let prompt):
+                        textField(field, prompt: prompt, multiline: false)
+                            .keyboardType(.numberPad)
                     case .multiline(let prompt):
                         textField(field, prompt: prompt, multiline: true)
                     }
@@ -182,6 +185,10 @@ struct TemplateFieldsCard: View {
         }
         .card()
         .onAppear { drafts = values }
+        // Valeurs posées d'ailleurs (fiche TMDB, recette importée) : le champ en cours de saisie reste.
+        .onChange(of: values) { _, updated in
+            for field in fields where field.key != focused { drafts[field.key] = updated[field.key] }
+        }
         .onChange(of: focused) { previous, _ in
             if !immediate, let previous { commit(previous, drafts[previous]) }
         }

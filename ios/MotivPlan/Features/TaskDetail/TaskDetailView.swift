@@ -1,4 +1,5 @@
 import CoreModels
+import MemoryImport
 import SwiftData
 import SwiftUI
 import TimelineEngine
@@ -45,11 +46,17 @@ struct TaskDetailView: View {
                 } else if kind != .checklist {
                     planningCard(today: today)
                 }
+                importCard(section?.template)
                 if let template = section?.template, !template.fields.isEmpty {
                     TemplateFieldsCard(fields: template.fields, values: task.fields) { key, value in
                         run { try store.setField(key, to: value, of: task) }
                     }
                     .id(template)
+                }
+                if section?.template == .recette, let servings = task.field(RecipeFields.servings).flatMap(Int.init),
+                   servings > 0, let ingredients = task.field(RecipeFields.ingredients) {
+                    ScaledIngredientsCard(ingredients: ingredients.components(separatedBy: .newlines).filter { !$0.isEmpty },
+                                          servings: servings)
                 }
                 if kind == .tasks {
                     SubtasksCard(task: task, store: store, run: run)
@@ -129,6 +136,33 @@ struct TaskDetailView: View {
     }
 
     // MARK: Cartes
+
+    /// Fiche TMDB d'un film, import d'une recette (lot 15).
+    @ViewBuilder
+    private func importCard(_ template: SectionTemplate?) -> some View {
+        switch template {
+        case .film:
+            TMDBSearchCard(query: title, posterPath: task.field(TMDBMapping.posterKey)) { found, fields in
+                title = found
+                run {
+                    try store.setTitle(found, of: task)
+                    for (key, value) in fields { try store.setField(key, to: value, of: task) }
+                }
+            }
+        case .recette:
+            RecipeImportCard { recipe in
+                run {
+                    if let found = recipe.title, task.title.trimmingCharacters(in: .whitespaces).isEmpty {
+                        title = found
+                        try store.setTitle(found, of: task)
+                    }
+                    for (key, value) in RecipeFields.values(of: recipe) { try store.setField(key, to: value, of: task) }
+                }
+            }
+        default:
+            EmptyView()
+        }
+    }
 
     private func cardTitle(_ text: String) -> some View {
         CardTitle(text: text)

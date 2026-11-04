@@ -4,6 +4,8 @@ ios/MotivPlan/Info.plist
 ios/MotivPlanWidget/Info.plist
 ios/MotivPlan/MotivPlan.entitlements
 ios/MotivPlanWidget/MotivPlanWidget.entitlements
+ios/MotivPlanShare/Info.plist
+ios/MotivPlanShare/MotivPlanShare.entitlements
 DerivedData/
 xcuserdata/
 *.xcuserstate

@@ -176,8 +176,10 @@ extension SectionTemplate {
             ]
         case .recette:
             [
+                TemplateField(key: "servings", label: "Couverts", style: .number("Pour combien de personnes")),
                 TemplateField(key: "ingredients", label: "Ingrédients", style: .multiline("Un ingrédient par ligne")),
                 TemplateField(key: "steps", label: "Étapes", style: .multiline("Une étape par ligne")),
+                TemplateField(key: "source", label: "Source", style: .text("Lien ou provenance de la recette")),
             ]
         case .voyage:
             [TemplateField(key: "place", label: "Lieu", style: .text("Ville, pays…"))]
@@ -194,6 +196,8 @@ struct TemplateField: Identifiable, Hashable {
         case text(String)
         case multiline(String)
         case choice([String])
+        /// Nombre entier (couverts d'une recette).
+        case number(String)
     }
 
     let key: String
