@@ -42,7 +42,9 @@ struct MigrationTests {
             try context.save()
         }
 
-        let context = try openCurrent(at: url).mainContext
+        // Le conteneur doit vivre aussi longtemps que son contexte.
+        let container = try openCurrent(at: url)
+        let context = container.mainContext
         let tasks = try context.fetch(FetchDescriptor<TaskItem>())
         #expect(tasks.map(\.id) == [taskId])
         #expect(tasks.first?.sectionId == filmsId)
@@ -78,7 +80,9 @@ struct MigrationTests {
             try context.save()
         }
 
-        let context = try openCurrent(at: url).mainContext
+        // Le conteneur doit vivre aussi longtemps que son contexte.
+        let container = try openCurrent(at: url)
+        let context = container.mainContext
         let task = try #require(try context.fetch(FetchDescriptor<TaskItem>()).first)
         #expect(task.id == taskId)
         #expect(task.startDate == "2026-11-20")
