@@ -183,10 +183,10 @@ struct WeekWidgetView: View {
             VStack(spacing: 0) {
                 Text(date.formatted(.dateTime.weekday(.abbreviated)))
                     .font(.caption2)
-                    .foregroundStyle(isToday ? .teal : .secondary)
+                    .foregroundStyle(isToday ? Color.teal : Color.secondary)
                 Text(date.formatted(.dateTime.day()))
                     .font(.subheadline.weight(isToday ? .heavy : .semibold))
-                    .foregroundStyle(isToday ? .teal : .primary)
+                    .foregroundStyle(isToday ? Color.teal : Color.primary)
             }
             .frame(width: 34)
             VStack(alignment: .leading, spacing: 1) {
