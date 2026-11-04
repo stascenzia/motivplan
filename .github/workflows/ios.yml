@@ -47,7 +47,7 @@ jobs:
       - run: brew install xcodegen
       - run: xcodegen generate
       - name: Tests MotivPlanCore
-        run: swift test --package-path Packages/MotivPlanCore
+        run: swift test --package-path Packages/MotivPlanCore --no-parallel
       - name: Build + tests d'interface (simulateur, sans signature)
         run: |
           # Premier iPhone disponible sur le runtime iOS le plus récent.
