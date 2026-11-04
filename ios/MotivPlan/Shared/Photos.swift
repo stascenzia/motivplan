@@ -65,11 +65,13 @@ struct PhotoStrip: View {
                     }
                 }
             }
+            // Le libellé du sélecteur n'est pas isolé au thread principal : texte calculé avant,
+            // style posé de l'extérieur.
+            let title = photos.isEmpty ? "Ajouter des photos" : "Ajouter d'autres photos"
             PhotosPicker(selection: $picked, maxSelectionCount: 10, matching: .images) {
-                Label(photos.isEmpty ? "Ajouter des photos" : "Ajouter d'autres photos", systemImage: "photo.on.rectangle")
-                    .pill()
+                Label(title, systemImage: "photo.on.rectangle")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PillButtonStyle())
         }
         .onAppear(perform: reload)
         .onChange(of: picked) { _, items in
