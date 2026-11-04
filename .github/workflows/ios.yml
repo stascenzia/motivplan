@@ -47,7 +47,11 @@ jobs:
       - run: brew install xcodegen
       - run: xcodegen generate
       - name: Tests MotivPlanCore
-        run: swift test --package-path Packages/MotivPlanCore --no-parallel
+        # La migration dans son propre processus : SwiftData garde l'état des schémas déjà
+        # ouverts, et un store d'une ancienne version ouvert après des stores en v3 fait planter.
+        run: |
+          swift test --package-path Packages/MotivPlanCore --no-parallel --filter MigrationTests
+          swift test --package-path Packages/MotivPlanCore --no-parallel --skip MigrationTests
       - name: Rapport de plantage des tests MotivPlanCore
         if: failure()
         run: |

@@ -13,38 +13,13 @@ struct MigrationTests {
         FileManager.default.temporaryDirectory.appendingPathComponent("migration-\(UUID().uuidString).store")
     }
 
-    private func openCurrent(at url: URL, plan: Bool = true) throws -> ModelContainer {
+    private func openCurrent(at url: URL) throws -> ModelContainer {
         let schema = Schema(versionedSchema: SchemaV3.self)
-        guard plan else {
-            return try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
-        }
         return try ModelContainer(for: schema, migrationPlan: MotivPlanMigrationPlan.self,
                                   configurations: [ModelConfiguration(schema: schema, url: url)])
     }
 
-    private func writeV1Store(at url: URL) throws {
-        let schema = Schema(versionedSchema: SchemaV1.self)
-        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
-        let context = container.mainContext
-        context.insert(SchemaV1.TaskSection(name: "Films et séries", symbol: "film", sortIndex: 0,
-                                            defaultDuration: nil, isPlannable: false, keepsMemory: true,
-                                            repeatRule: .none, now: now))
-        context.insert(SchemaV1.TaskItem(title: "Dune", source: .siri, now: now))
-        try context.save()
-    }
-
-    private func writeV2Store(at url: URL) throws {
-        let schema = Schema(versionedSchema: SchemaV2.self)
-        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
-        let context = container.mainContext
-        let trip = SchemaV2.TaskItem(title: "Lisbonne", source: .manual, now: now)
-        trip.startDate = "2026-11-20"
-        context.insert(trip)
-        try context.save()
-    }
-
-    @Test("Un store v1 sur disque s'ouvre en v3, données intactes, types et modèles déduits",
-          .disabled("Diagnostic : la migration v1 → v2 → v3 plante sur la CI"))
+    @Test("Un store v1 sur disque s'ouvre en v3, données intactes, types et modèles déduits")
     func v1StoreOpensInCurrent() throws {
         let url = temporaryStore()
         defer { try? FileManager.default.removeItem(at: url) }
@@ -81,8 +56,7 @@ struct MigrationTests {
         #expect(sections.map(\.template) == [.film, .voyage])
     }
 
-    @Test("Un store v2 sur disque s'ouvre en v3 : périodes gardées, rien dans les nouveaux champs",
-          .disabled("Diagnostic : la migration v2 → v3 plante sur la CI"))
+    @Test("Un store v2 sur disque s'ouvre en v3 : périodes gardées, rien dans les nouveaux champs")
     func v2StoreOpensInCurrent() throws {
         let url = temporaryStore()
         defer { try? FileManager.default.removeItem(at: url) }
@@ -117,38 +91,5 @@ struct MigrationTests {
         #expect(section.template == .voyage)
     }
 
-    @Test("Diagnostic : store v2 ouvert en v3 sans plan de migration")
-    func diagnosticV2WithoutPlan() throws {
-        let url = temporaryStore()
-        defer { try? FileManager.default.removeItem(at: url) }
-        try writeV2Store(at: url)
-        let tasks = try openCurrent(at: url, plan: false).mainContext.fetch(FetchDescriptor<TaskItem>())
-        #expect(tasks.first?.startDate == "2026-11-20")
-    }
-
-    @Test("Diagnostic : store v2 ouvert en v3 avec un plan v2 → v3 seulement")
-    func diagnosticV2WithShortPlan() throws {
-        let url = temporaryStore()
-        defer { try? FileManager.default.removeItem(at: url) }
-        try writeV2Store(at: url)
-        let schema = Schema(versionedSchema: SchemaV3.self)
-        let container = try ModelContainer(for: schema, migrationPlan: ShortPlan.self,
-                                           configurations: [ModelConfiguration(schema: schema, url: url)])
-        let tasks = try container.mainContext.fetch(FetchDescriptor<TaskItem>())
-        #expect(tasks.first?.startDate == "2026-11-20")
-    }
-
-    private enum ShortPlan: SchemaMigrationPlan {
-        static var schemas: [any VersionedSchema.Type] { [SchemaV2.self, SchemaV3.self] }
-        static var stages: [MigrationStage] { [.lightweight(fromVersion: SchemaV2.self, toVersion: SchemaV3.self)] }
-    }
-
-    @Test("Diagnostic : store v1 ouvert en v3 sans plan de migration")
-    func diagnosticV1WithoutPlan() throws {
-        let url = temporaryStore()
-        defer { try? FileManager.default.removeItem(at: url) }
-        try writeV1Store(at: url)
-        let tasks = try openCurrent(at: url, plan: false).mainContext.fetch(FetchDescriptor<TaskItem>())
-        #expect(tasks.map(\.title) == ["Dune"])
-    }
+}
 }
