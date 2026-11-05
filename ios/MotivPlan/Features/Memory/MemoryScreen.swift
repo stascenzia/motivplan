@@ -163,12 +163,135 @@ struct MemoryScreen: View {
             }
             .padding(.horizontal, 4)
 
-            switch list.kind {
-            case .memory: memoryList(list, items: own, today: today)
-            case .checklist: checklist(list, items: own, today: today)
-            case .periods: periodList(list, items: own, today: today)
-            case .tasks: EmptyView()
+            if list.template == .valise {
+                suitcaseList(list, items: own)
+            } else {
+                switch list.kind {
+                case .memory: memoryList(list, items: own, today: today)
+                case .checklist: checklist(list, items: own, today: today)
+                case .periods: periodList(list, items: own, today: today)
+                case .tasks: EmptyView()
+                }
             }
+        }
+    }
+
+    // MARK: Valise
+
+    /// Inventaire du voyage en cours par catégorie : coché, un article reste en place ; décoché au
+    /// retour. « Voyage fini » archive l'inventaire et vide la liste pour le prochain voyage.
+    @ViewBuilder
+    private func suitcaseList(_ list: TaskSection, items own: [TaskItem]) -> some View {
+        let articles = own.filter { !$0.isSuitcaseArchive }.sorted { $0.createdAt < $1.createdAt }
+        let archives = own.filter(\.isSuitcaseArchive)
+            .sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
+        HStack(spacing: 2) {
+            modeButton("Valise · \(articles.filter(\.isDone).count)/\(articles.count)", selected: !showMemory) { showMemory = false }
+            modeButton("Archivées · \(archives.count)", selected: showMemory) { showMemory = true }
+        }
+        .padding(4)
+        .background(Palette.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+        if showMemory {
+            VStack(spacing: 6) {
+                ForEach(archives) { archive in
+                    NavigationLink(value: archive) {
+                        HStack {
+                            Image(systemName: "suitcase")
+                                .foregroundStyle(Palette.accent)
+                            Text(archive.title)
+                                .font(.taskTitle)
+                                .foregroundStyle(Palette.text)
+                            Spacer()
+                            Text("\(archive.subtasks.count) articles")
+                                .font(.meta)
+                                .foregroundStyle(Palette.textTertiary)
+                        }
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 52)
+                        .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button("Supprimer", systemImage: "trash", role: .destructive) { run { try store.delete(archive) } }
+                    }
+                }
+                if archives.isEmpty {
+                    emptyText("Aucune valise archivée. « Voyage fini » range ici l'inventaire d'un voyage.")
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(PackingCategory.all, id: \.self) { category in
+                    VStack(alignment: .leading, spacing: 6) {
+                        GroupLabel(text: category)
+                            .padding(.horizontal, 4)
+                        ForEach(articles.filter { $0.packingCategory == category }) { item in
+                            suitcaseRow(item)
+                        }
+                        SuitcaseAddField(category: category) { title in
+                            run { try store.addSuitcaseItem(title, category: category, to: list) }
+                        }
+                    }
+                }
+                if !articles.isEmpty {
+                    Button {
+                        confirmClear = true
+                    } label: {
+                        Label("Voyage fini", systemImage: "archivebox")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(PillButtonStyle(prominent: true))
+                    .padding(.top, 6)
+                }
+            }
+            .confirmationDialog("Voyage fini ? La valise est archivée et la liste vidée pour le prochain voyage.",
+                                isPresented: $confirmClear, titleVisibility: .visible) {
+                Button("Archiver la valise") {
+                    withAnimation { run { try store.finishTrip(list) } }
+                    doneCount += 1
+                }
+            }
+        }
+    }
+
+    private func suitcaseRow(_ item: TaskItem) -> some View {
+        let checked = item.isDone
+        return Button {
+            withAnimation(.spring(duration: 0.3)) { run { try store.toggleDone(item) } }
+            checkCount += 1
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    if checked {
+                        Circle().fill(Palette.accent)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12, weight: .heavy))
+                            .foregroundStyle(Palette.onAccent)
+                    } else {
+                        Circle().strokeBorder(Palette.ring, lineWidth: 2)
+                    }
+                }
+                .frame(width: 26, height: 26)
+                Text(item.title)
+                    .font(.taskTitle)
+                    .foregroundStyle(Palette.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 14)
+            .frame(minHeight: 48)
+            .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(checked ? .isSelected : [])
+        .contextMenu {
+            ForEach(PackingCategory.all.filter { $0 != item.packingCategory }, id: \.self) { category in
+                Button("Ranger dans \(category)", systemImage: "arrow.right") {
+                    run { try store.setCategory(category, of: item) }
+                }
+            }
+            Button("Supprimer", systemImage: "trash", role: .destructive) { run { try store.delete(item) } }
         }
     }
 
@@ -177,11 +300,10 @@ struct MemoryScreen: View {
     private func memoryList(_ list: TaskSection, items own: [TaskItem], today: DayKey) -> some View {
         let todo = own.filter { $0.status == .inbox || $0.status == .scheduled }
         let memory = own.filter(\.isDone).sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
-        let isSuitcase = list.template == .valise
         capture(list, placeholder: list.template?.titlePrompt ?? "Un film, une recette à essayer…")
         HStack(spacing: 2) {
-            modeButton("\(isSuitcase ? "En cours" : "À faire") · \(todo.count)", selected: !showMemory) { showMemory = false }
-            modeButton("\(isSuitcase ? "Archivées" : "Mémoire") · \(memory.count)", selected: showMemory) { showMemory = true }
+            modeButton("À faire · \(todo.count)", selected: !showMemory) { showMemory = false }
+            modeButton("Mémoire · \(memory.count)", selected: showMemory) { showMemory = true }
         }
         .padding(4)
         .background(Palette.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -195,46 +317,20 @@ struct MemoryScreen: View {
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
-                        Button(isSuitcase ? "Rouvrir la valise" : "Remettre à faire", systemImage: "arrow.uturn.backward") {
-                            run { try store.toggleDone(task) }
-                        }
+                        Button("Remettre à faire", systemImage: "arrow.uturn.backward") { run { try store.toggleDone(task) } }
                     }
                 }
                 if memory.isEmpty {
-                    emptyText(isSuitcase
-                        ? "Aucune valise archivée. « Voyage fini » range ici la valise d'un voyage."
-                        : "Rien encore. Ce que tu termines ici est gardé avec ton avis.")
+                    emptyText("Rien encore. Ce que tu termines ici est gardé avec ton avis.")
                 }
             } else {
                 ForEach(todo) { task in
-                    if isSuitcase {
-                        suitcaseRow(task, today: today)
-                    } else {
-                        memoryTodoRow(task, today: today)
-                    }
+                    memoryTodoRow(task, today: today)
                 }
                 if todo.isEmpty {
-                    emptyText(isSuitcase
-                        ? "Aucune valise en cours. Nomme ton voyage juste au-dessus."
-                        : "Rien en attente. Note une envie juste au-dessus.")
+                    emptyText("Rien en attente. Note une envie juste au-dessus.")
                 }
             }
-        }
-    }
-
-    /// Valise en cours : on l'ouvre pour cocher ; pas de planification, pas de rond « fait ».
-    private func suitcaseRow(_ task: TaskItem, today: DayKey) -> some View {
-        NavigationLink(value: task) {
-            TaskRow(task: task, today: today)
-                .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .contextMenu {
-            Button("Voyage fini", systemImage: "archivebox") {
-                withAnimation(.spring(duration: 0.3)) { run { try store.complete(task, review: nil, note: nil) } }
-                doneCount += 1
-            }
-            Button("Supprimer", systemImage: "trash", role: .destructive) { run { try store.delete(task) } }
         }
     }
 

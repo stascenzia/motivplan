@@ -192,28 +192,33 @@ struct MemoryTemplateTests {
 
     // MARK: Valises
 
-    @Test("Une valise range ses articles par catégorie ; cochés, ils le restent jusqu'au retour")
+    @Test("Valise : articles par catégorie, cochés ils restent ; « Voyage fini » archive et vide la liste")
     func suitcase() throws {
-        let suitcases = try store.createSection(name: "Valises", template: .valise)
-        #expect(suitcases.kind == .memory)
-        let trip = try store.capture("Lisbonne", source: .manual)
-        try store.setSection(suitcases, of: trip)
-        let shirt = try store.addSubtask("Chemise", category: "Vêtements", to: trip)
-        _ = try store.addSubtask("Gourde", category: "Sac à dos", to: trip)
-        _ = try store.addSubtask("Bouchons", to: trip)
-        try store.toggleSubtask(shirt.id, of: trip)
+        let suitcase = try store.createSection(name: "Valise", template: .valise)
+        #expect(suitcase.kind == .checklist)
+        #expect(suitcase.template == .valise)
+        let shirt = try store.addSuitcaseItem("Chemise", category: "Vêtements", to: suitcase)
+        try store.addSuitcaseItem("Gourde", category: "Sac à dos", to: suitcase)
+        let plugs = try store.addSuitcaseItem("Bouchons", category: "Divers", to: suitcase)
+        try store.toggleDone(shirt)
+        #expect(shirt.isDone)
+        #expect(shirt.deletedAt == nil)
+        #expect(plugs.packingCategory == "Divers")
 
-        let items = trip.subtasks
-        #expect(items.map(PackingCategory.of) == ["Vêtements", "Sac à dos", "Divers"])
-        #expect(items.first?.isDone == true)
-
-        try store.complete(trip, review: nil, note: nil)
-        #expect(trip.isDone)
-        #expect(trip.subtasks.first?.isDone == true)
+        let archive = try #require(try store.finishTrip(suitcase))
+        #expect(archive.isSuitcaseArchive)
+        #expect(archive.isDone)
+        #expect(archive.subtasks.map(\.title) == ["Chemise", "Gourde", "Bouchons"])
+        #expect(archive.subtasks.map(PackingCategory.of) == ["Vêtements", "Sac à dos", "Divers"])
+        #expect(archive.subtasks.first?.isDone == true)
+        #expect(shirt.deletedAt != nil)
+        #expect(try store.finishTrip(suitcase) == nil)
     }
 
-    @Test("Une liste nommée « Valises » d'avant la v3 prend le modèle valise")
-    func suitcaseInferred() {
-        #expect(SectionTemplate.inferred(kind: .memory, name: "Mes valises") == .valise)
+    @Test("Une liste existante nommée « Valise » devient une valise")
+    func suitcaseInferred() throws {
+        #expect(SectionTemplate.inferred(kind: .checklist, name: "Valise") == .valise)
+        let old = try store.createSection(name: "Ma valise", kind: .memory, template: .liste)
+        #expect(old.template == .valise)
     }
 }

@@ -116,14 +116,14 @@ public enum SectionTemplate: String, Sendable, Hashable, CaseIterable, Codable {
     case voyage
     /// Liste simple : un titre et une note.
     case liste
-    /// Valise d'un voyage : un inventaire par catégorie. Coché à l'aller, décoché au retour ;
-    /// « Voyage fini » l'archive.
+    /// Valise : la liste est l'inventaire du voyage, par catégorie. Coché à l'aller (l'article
+    /// reste coché), décoché au retour ; « Voyage fini » archive l'inventaire et vide la liste.
     case valise
 
     public var kind: SectionKind {
         switch self {
-        case .courses: .checklist
-        case .film, .recette, .liste, .valise: .memory
+        case .courses, .valise: .checklist
+        case .film, .recette, .liste: .memory
         case .voyage: .periods
         }
     }
@@ -141,15 +141,20 @@ public enum SectionTemplate: String, Sendable, Hashable, CaseIterable, Codable {
         self == .voyage || self == .recette
     }
 
+    /// « Valise », « Bagages »…
+    public static func isSuitcaseName(_ name: String) -> Bool {
+        let lowered = name.lowercased()
+        return ["valise", "bagage"].contains(where: { lowered.contains($0) })
+    }
+
     /// Modèle d'une section d'avant la v3, d'après son type et son nom.
     public static func inferred(kind: SectionKind, name: String) -> SectionTemplate? {
         let lowered = name.lowercased()
         switch kind {
         case .tasks: return nil
-        case .checklist: return .courses
+        case .checklist: return isSuitcaseName(name) ? .valise : .courses
         case .periods: return .voyage
         case .memory:
-            if ["valise", "bagage"].contains(where: { lowered.contains($0) }) { return .valise }
             if ["recette", "cuisine", "plat"].contains(where: { lowered.contains($0) }) { return .recette }
             if ["film", "série", "serie", "ciné"].contains(where: { lowered.contains($0) }) { return .film }
             return .liste

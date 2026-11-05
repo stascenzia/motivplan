@@ -147,7 +147,7 @@ extension SectionTemplate {
         case .recette: "Recettes à essayer, avec les ingrédients et les étapes. Une fois faites, ton avis et des photos."
         case .voyage: "Voyages et vacances : lieu et dates, en bandeau dans le calendrier. Après, ton avis et des photos."
         case .liste: "Une liste d'idées : un titre et une note, rien de plus."
-        case .valise: "Une valise par voyage, rangée en Vêtements, Sac à dos et Divers : coche à l'aller, décoche au retour, puis « Voyage fini » l'archive."
+        case .valise: "L'inventaire de ta valise en Vêtements, Sac à dos et Divers : coche à l'aller, décoche au retour, puis « Voyage fini » archive la valise."
         }
     }
 
@@ -159,7 +159,7 @@ extension SectionTemplate {
         case .recette: "Nouvelle recette"
         case .voyage: "Nouveau voyage"
         case .liste: "Nouvelle idée"
-        case .valise: "Nouvelle valise"
+        case .valise: "Nouvel article"
         }
     }
 
@@ -171,7 +171,7 @@ extension SectionTemplate {
         case .recette: "Curry de lentilles…"
         case .voyage: "Lisbonne, vacances de Noël…"
         case .liste: "Une idée…"
-        case .valise: "Lisbonne, week-end ski…"
+        case .valise: "Un article…"
         }
     }
 

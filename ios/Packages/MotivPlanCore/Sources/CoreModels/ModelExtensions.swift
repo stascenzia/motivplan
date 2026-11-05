@@ -17,7 +17,13 @@ extension TaskSection {
     /// Modèle d'une section de la Mémoire (ADR-016) ; `nil` pour une section à faire.
     public var template: SectionTemplate? {
         guard kind.isMemorySpace else { return nil }
-        if let stored = templateRaw.flatMap(SectionTemplate.init(rawValue:)), stored.kind == kind { return stored }
+        // Une liste nommée « Valise » sans modèle propre (liste simple, courses) devient une valise.
+        let stored = templateRaw.flatMap(SectionTemplate.init(rawValue:))
+        if stored == .valise { return .valise }
+        if kind != .periods, SectionTemplate.isSuitcaseName(name), stored == nil || stored == .liste || stored == .courses {
+            return .valise
+        }
+        if let stored, stored.kind == kind { return stored }
         return SectionTemplate.inferred(kind: kind, name: name)
     }
 
