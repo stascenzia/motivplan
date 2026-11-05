@@ -236,19 +236,19 @@ struct TaskDetailView: View {
         .card()
     }
 
-    /// Durée par pas de 15 min, sans sélecteur (principe 4).
+    /// Durée par pas de 5 min, sans sélecteur (principe 4).
     private var durationCard: some View {
         let duration = task.durationMin ?? Durations.fallback
         return HStack {
             VStack(alignment: .leading, spacing: 2) {
                 cardTitle("Durée")
-                Text("Par pas de 15 min")
+                Text("Par pas de 5 min")
                     .font(.meta)
                     .foregroundStyle(Palette.textTertiary)
             }
             Spacer()
-            StepButton(text: "−", label: "Moins 15 minutes") {
-                run { try store.setDuration(max(duration - 15, Durations.minimum), of: task) }
+            StepButton(text: "−", label: "Moins 5 minutes") {
+                run { try store.setDuration(max(duration - 5, Durations.minimum), of: task) }
             }
             .disabled(duration <= Durations.minimum)
             Text(TimeText.duration(duration))
@@ -256,8 +256,8 @@ struct TaskDetailView: View {
                 .foregroundStyle(Palette.text)
                 .frame(minWidth: 76)
                 .accessibilityLabel("Durée \(TimeText.duration(duration))")
-            StepButton(text: "+", label: "Plus 15 minutes") {
-                run { try store.setDuration(duration + 15, of: task) }
+            StepButton(text: "+", label: "Plus 5 minutes") {
+                run { try store.setDuration(duration + 5, of: task) }
             }
         }
         .card()
@@ -277,7 +277,7 @@ struct TaskDetailView: View {
                     Text("Heure fixe")
                         .font(.rowTitle)
                         .foregroundStyle(Palette.text)
-                    Text("Rendez-vous, cours, réunion")
+                    Text("Pour choisir l'heure de début")
                         .font(.meta)
                         .foregroundStyle(Palette.textTertiary)
                 }
@@ -292,15 +292,26 @@ struct TaskDetailView: View {
             if task.isAnchored, let start = task.anchorTime {
                 HStack(spacing: 6) {
                     StepButton(text: "−1 h", label: "Moins une heure", width: 0) { run { try store.setAnchor(start - 60, of: task) } }
-                    StepButton(text: "−15", label: "Moins 15 minutes", width: 0) { run { try store.setAnchor(start - 15, of: task) } }
+                    StepButton(text: "−5", label: "Moins 5 minutes", width: 0) { run { try store.setAnchor(start - 5, of: task) } }
                     Text(TimeText.clock(start))
                         .font(.manrope(22, .extrabold, relativeTo: .title2).monospacedDigit())
                         .foregroundStyle(Palette.text)
                         .frame(minWidth: 78)
-                    StepButton(text: "+15", label: "Plus 15 minutes", width: 0) { run { try store.setAnchor(start + 15, of: task) } }
+                    StepButton(text: "+5", label: "Plus 5 minutes", width: 0) { run { try store.setAnchor(start + 5, of: task) } }
                     StepButton(text: "+1 h", label: "Plus une heure", width: 0) { run { try store.setAnchor(start + 60, of: task) } }
                 }
                 .frame(maxWidth: .infinity)
+                // Saut direct à une heure précise, arrondie aux 5 min comme les boutons.
+                DatePicker("Choisir l'heure", selection: Binding(
+                    get: { Calendar.current.startOfDay(for: .now).addingTimeInterval(TimeInterval(start * 60)) },
+                    set: { date in
+                        let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
+                        let minutes = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+                        run { try store.setAnchor(minutes / 5 * 5, of: task) }
+                    }
+                ), displayedComponents: .hourAndMinute)
+                .font(.manrope(13, .semibold, relativeTo: .footnote))
+                .foregroundStyle(Palette.textSecondary)
             } else {
                 HStack(spacing: 6) {
                     Text("Position dans la journée")

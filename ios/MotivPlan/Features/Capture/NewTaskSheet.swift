@@ -275,20 +275,20 @@ struct NewTaskSheet: View {
         .card()
     }
 
-    /// Durée par pas de 15 min (principe 4). Sans choix, celle de la section.
+    /// Durée par pas de 5 min (principe 4). Sans choix, celle de la section.
     private func durationCard(section: TaskSection?) -> some View {
         let suggested = Durations.defaultDuration(existing: nil, suggested: section?.defaultDuration)
         let duration = draft.durationMin ?? suggested
         return HStack {
             VStack(alignment: .leading, spacing: 2) {
                 CardTitle(text: "Durée")
-                Text(draft.durationMin == nil ? "Suggérée par la section" : "Par pas de 15 min")
+                Text(draft.durationMin == nil ? "Suggérée par la section" : "Par pas de 5 min")
                     .font(.meta)
                     .foregroundStyle(Palette.textTertiary)
             }
             Spacer()
-            StepButton(text: "−", label: "Moins 15 minutes") {
-                draft.durationMin = max(duration - 15, Durations.minimum)
+            StepButton(text: "−", label: "Moins 5 minutes") {
+                draft.durationMin = max(duration - 5, Durations.minimum)
             }
             .disabled(duration <= Durations.minimum)
             Text(TimeText.duration(duration))
@@ -296,8 +296,8 @@ struct NewTaskSheet: View {
                 .foregroundStyle(draft.durationMin == nil ? Palette.textSecondary : Palette.text)
                 .frame(minWidth: 76)
                 .accessibilityLabel("Durée \(TimeText.duration(duration))")
-            StepButton(text: "+", label: "Plus 15 minutes") {
-                draft.durationMin = duration + 15
+            StepButton(text: "+", label: "Plus 5 minutes") {
+                draft.durationMin = duration + 5
             }
         }
         .card()
