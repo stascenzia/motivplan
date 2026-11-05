@@ -66,6 +66,7 @@ struct TMDBTests {
         let json = """
             {"id":136315,"name":"The Bear","first_air_date":"2022-06-23","overview":"Un chef revient à Chicago.",
              "poster_path":"/bear.jpg","genres":[{"id":18,"name":"Drame"},{"id":35,"name":"Comédie"}],
+             "number_of_seasons":4,
              "watch/providers":{"results":{"FR":{"flatrate":[{"provider_name":"Disney Plus"}]},
                                             "US":{"flatrate":[{"provider_name":"Hulu"}]}}}}
             """
@@ -79,6 +80,11 @@ struct TMDBTests {
         #expect(fields["summary"] == "Un chef revient à Chicago.")
         #expect(fields["tmdb"] == "tv:136315")
         #expect(fields["poster"] == "/bear.jpg")
+        #expect(fields["seasons"] == "4")
+
+        // Un film n'a pas de saisons, même si la réponse en porte.
+        let movie = try TMDBDecoding.details(from: Data(json.utf8), media: .movie)
+        #expect(TMDBMapping.fields(for: movie)["seasons"] == nil)
     }
 
     @Test("Genres et plateformes ramenés aux noms de l'app")
@@ -90,6 +96,9 @@ struct TMDBTests {
         #expect(TMDBMapping.platform(from: ["Amazon Prime Video", "Netflix"]) == "Prime Video")
         #expect(TMDBMapping.platform(from: ["Canal+ Séries"]) == "Canal+")
         #expect(TMDBMapping.platform(from: ["Paramount Plus"]) == "Paramount Plus")
+        #expect(TMDBMapping.platform(from: ["HBO Max"]) == "HBO Max")
+        #expect(TMDBMapping.platform(from: ["Max"]) == "HBO Max")
+        #expect(TMDBMapping.platform(from: ["Arte"]) == "Arte")
         #expect(TMDBMapping.platform(from: []) == nil)
     }
 

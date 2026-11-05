@@ -29,6 +29,7 @@ struct MemoryScreen: View {
     @State private var doneCount = 0
     @State private var checkCount = 0
     @State private var copied = false
+    @State private var showChecked = false
 
     private var store: TaskStore { TaskStore(context: context) }
 
@@ -323,30 +324,44 @@ struct MemoryScreen: View {
         }
     }
 
-    /// Liste à cocher : on coche en magasin, les cochés descendent, puis on les vide.
+    /// Liste à cocher : un article coché sort de la liste (retour du 2026-11-04). Les cochés restent
+    /// repliés en bas, pour décocher une erreur, puis on les vide.
     @ViewBuilder
     private func checklist(_ list: TaskSection, items own: [TaskItem], today: DayKey) -> some View {
         let open = own.filter { !$0.isDone }
-        let checked = own.filter(\.isDone)
+        let checked = own.filter(\.isDone).sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
         capture(list, placeholder: "Un article…")
         VStack(spacing: 6) {
             ForEach(open) { item in checkRow(item, checked: false) }
             if open.isEmpty {
                 emptyText(checked.isEmpty ? "Liste vide. Ajoute un article juste au-dessus." : "Tout est dans le panier !")
             }
+            if !open.isEmpty {
+                copyForReminders(open)
+                    .padding(.top, 10)
+            }
             if !checked.isEmpty {
                 HStack {
-                    GroupLabel(text: "Dans le panier · \(checked.count)")
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { showChecked.toggle() }
+                    } label: {
+                        HStack(spacing: 6) {
+                            GroupLabel(text: "Cochés · \(checked.count)")
+                            Image(systemName: showChecked ? "chevron.up" : "chevron.down")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Palette.textTertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("memory-checked-toggle")
                     Spacer()
                     Button("Vider les cochés") { confirmClear = true }
                         .buttonStyle(PillButtonStyle())
                 }
-                .padding(.top, 10)
-                ForEach(checked) { item in checkRow(item, checked: true) }
-            }
-            if !open.isEmpty {
-                copyForReminders(open)
-                    .padding(.top, 10)
+                .padding(.top, 14)
+                if showChecked {
+                    ForEach(checked) { item in checkRow(item, checked: true) }
+                }
             }
         }
         .confirmationDialog("Retirer les \(checked.count) articles cochés ?", isPresented: $confirmClear,

@@ -38,6 +38,8 @@ public struct TMDBDetails: Sendable, Equatable {
     public let genres: [String]
     /// Plateformes d'abonnement (« flatrate »), par ordre d'importance donné par TMDB.
     public let providers: [String]
+    /// Nombre de saisons d'une série ; `nil` pour un film.
+    public var seasons: Int? = nil
 }
 
 public enum TMDBError: Error, Equatable, LocalizedError {
@@ -92,10 +94,11 @@ public enum TMDBDecoding {
         let overview: String?
         let poster_path: String?
         let genres: [Genre]?
+        let number_of_seasons: Int?
         let providers: Providers?
 
         enum CodingKeys: String, CodingKey {
-            case id, title, name, release_date, first_air_date, overview, poster_path, genres
+            case id, title, name, release_date, first_air_date, overview, poster_path, genres, number_of_seasons
             case providers = "watch/providers"
         }
     }
@@ -118,7 +121,9 @@ public enum TMDBDecoding {
                                 year: year(item.release_date ?? item.first_air_date),
                                 overview: nonEmpty(item.overview), posterPath: nonEmpty(item.poster_path))
         let providers = item.providers?.results[region]?.flatrate?.map(\.provider_name) ?? []
-        return TMDBDetails(result: result, genres: item.genres?.map(\.name) ?? [], providers: providers)
+        let seasons = media == .tv ? item.number_of_seasons.flatMap { $0 > 0 ? $0 : nil } : nil
+        return TMDBDetails(result: result, genres: item.genres?.map(\.name) ?? [], providers: providers,
+                           seasons: seasons)
     }
 
     private static func year(_ date: String?) -> String? {
@@ -141,6 +146,8 @@ public enum TMDBMapping {
     /// Tous les genres, un par ligne, aux noms de l'app.
     public static let genresKey = "genres"
     public static let platformKey = "platform"
+    /// Nombre de saisons d'une série.
+    public static let seasonsKey = "seasons"
     public static let summaryKey = "summary"
     /// « movie:438631 ».
     public static let idKey = "tmdb"
@@ -153,11 +160,12 @@ public enum TMDBMapping {
             idKey: details.result.id,
         ]
         fields[genreKey] = genre(from: details.genres)
-        // Tous les genres, un par ligne : le champ principal reste `genre`, la liste prépare les
-        // genres multiples.
+        // Tous les genres, un par ligne : `genres` porte le choix multiple, `genre` garde le premier
+        // pour les versions précédentes de l'app.
         let all = genres(from: details.genres)
         if !all.isEmpty { fields[genresKey] = all.joined(separator: "\n") }
         fields[platformKey] = platform(from: details.providers)
+        fields[seasonsKey] = details.seasons.map(String.init)
         fields[summaryKey] = details.result.overview
         fields[posterKey] = details.result.posterPath
         return fields
@@ -201,7 +209,8 @@ public enum TMDBMapping {
         if folded.contains("disney") { return "Disney+" }
         if folded.contains("canal") { return "Canal+" }
         if folded.contains("apple tv") { return "Apple TV+" }
-        if folded == "max" || folded.contains("hbo max") { return "Max" }
+        if folded == "max" || folded.contains("hbo") { return "HBO Max" }
+        if folded.contains("arte") { return "Arte" }
         return first
     }
 
