@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import TimelineEngine
 
 /// Liste de valise (modèle `valise`) : les articles de la section sont l'inventaire du voyage en
 /// cours, rangés par catégorie. Un article coché le reste (aller), on le décoche au retour.
@@ -7,8 +8,8 @@ import SwiftData
 /// prochain voyage. Pas de changement de schéma : la catégorie et la marque d'archive vivent dans
 /// les champs (`fieldsRaw`), l'inventaire archivé dans les sous-tâches.
 extension TaskStore {
-    public static let categoryField = "category"
-    public static let archiveField = "archive"
+    nonisolated public static let categoryField = "category"
+    nonisolated public static let archiveField = "archive"
 
     /// Ajoute un article dans une catégorie de la valise.
     @discardableResult
