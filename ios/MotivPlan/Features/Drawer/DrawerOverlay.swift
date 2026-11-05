@@ -53,11 +53,8 @@ struct DrawerOverlay<Peek: View, Content: View>: View {
         .overlay {
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Palette.border, lineWidth: 1)
         }
-        .padding(.horizontal, 16)
-        // Replié, le tiroir n'existe que barre d'onglets visible : il se pose au-dessus.
-        .padding(.bottom, TabBarMetrics.occupied + 10)
-        .offset(y: min(0, dragOffset) / 3)
-        .contentShape(Rectangle())
+        // Zone de toucher limitée à la carte : la marge du dessous passe sous la barre d'onglets.
+        .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .onTapGesture { detent = .half }
         .gesture(resizeGesture(available: available))
         .accessibilityElement(children: .combine)
@@ -66,6 +63,10 @@ struct DrawerOverlay<Peek: View, Content: View>: View {
         .accessibilityHint("Ouvre le tiroir")
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { detent = .half }
+        .padding(.horizontal, 16)
+        // Replié, le tiroir n'existe que barre d'onglets visible : il se pose au-dessus.
+        .padding(.bottom, TabBarMetrics.occupied + 10)
+        .offset(y: min(0, dragOffset) / 3)
         .transition(.opacity)
     }
 
