@@ -41,12 +41,16 @@ struct TaskDetailView: View {
                 // Les champs suivent le type de la section (ADR-015) et son modèle (ADR-016).
                 let section = sections.section(of: task)
                 let kind = section?.kind ?? .tasks
+                let isSuitcase = section?.template == .valise
                 if kind == .periods {
                     periodCard
-                } else if kind != .checklist {
+                } else if kind != .checklist, !isSuitcase {
                     planningCard(today: today)
                 }
                 importCard(section?.template)
+                if isSuitcase {
+                    PackingCard(task: task, store: store, run: run) { dismiss() }
+                }
                 if let template = section?.template, !template.fields.isEmpty {
                     TemplateFieldsCard(fields: template.fields, values: task.fields) { key, value in
                         run { try store.setField(key, to: value, of: task) }
@@ -68,11 +72,11 @@ struct TaskDetailView: View {
                 if kind == .tasks, section?.isPlannable ?? true, section?.repeatRule != .daily {
                     RepeatCard(rule: task.taskRepeat) { rule in run { try store.setRepeat(rule, of: task) } }
                 }
-                if let section, section.keepsMemory || section.asksReview {
+                if let section, !isSuitcase, section.keepsMemory || section.asksReview {
                     memoryCard(section)
                 }
                 sectionCard
-                if kind == .tasks || kind == .memory {
+                if kind == .tasks || (kind == .memory && !isSuitcase) {
                     tagCard
                 }
                 if kind == .tasks {

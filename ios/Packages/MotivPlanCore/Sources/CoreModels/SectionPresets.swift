@@ -27,5 +27,7 @@ public struct SectionPreset: Sendable {
                       isPlannable: false, keepsMemory: true, repeatRule: .none, kind: .memory, template: .film),
         SectionPreset(name: "Voyages", symbol: "airplane", defaultDuration: nil,
                       isPlannable: false, keepsMemory: false, repeatRule: .none, kind: .periods, template: .voyage),
+        SectionPreset(name: "Valises", symbol: "suitcase", defaultDuration: nil,
+                      isPlannable: false, keepsMemory: true, repeatRule: .none, kind: .memory, template: .valise),
     ]
 }

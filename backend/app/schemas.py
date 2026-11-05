@@ -9,7 +9,7 @@ Review = Literal["aime", "bof", "pas_aime"]
 Repeat = Literal["none", "daily", "permanent"]
 Kind = Literal["tasks", "memory", "checklist", "periods"]
 Space = Literal["tasks", "memory"]
-Template = Literal["courses", "film", "recette", "voyage", "liste"]
+Template = Literal["courses", "film", "recette", "voyage", "liste", "valise"]
 Status = Literal["inbox", "scheduled", "done", "archived"]
 Source = Literal["manual", "siri", "widget"]
 

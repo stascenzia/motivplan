@@ -177,10 +177,11 @@ struct MemoryScreen: View {
     private func memoryList(_ list: TaskSection, items own: [TaskItem], today: DayKey) -> some View {
         let todo = own.filter { $0.status == .inbox || $0.status == .scheduled }
         let memory = own.filter(\.isDone).sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
+        let isSuitcase = list.template == .valise
         capture(list, placeholder: list.template?.titlePrompt ?? "Un film, une recette à essayer…")
         HStack(spacing: 2) {
-            modeButton("À faire · \(todo.count)", selected: !showMemory) { showMemory = false }
-            modeButton("Mémoire · \(memory.count)", selected: showMemory) { showMemory = true }
+            modeButton("\(isSuitcase ? "En cours" : "À faire") · \(todo.count)", selected: !showMemory) { showMemory = false }
+            modeButton("\(isSuitcase ? "Archivées" : "Mémoire") · \(memory.count)", selected: showMemory) { showMemory = true }
         }
         .padding(4)
         .background(Palette.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -194,20 +195,46 @@ struct MemoryScreen: View {
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
-                        Button("Remettre à faire", systemImage: "arrow.uturn.backward") { run { try store.toggleDone(task) } }
+                        Button(isSuitcase ? "Rouvrir la valise" : "Remettre à faire", systemImage: "arrow.uturn.backward") {
+                            run { try store.toggleDone(task) }
+                        }
                     }
                 }
                 if memory.isEmpty {
-                    emptyText("Rien encore. Ce que tu termines ici est gardé avec ton avis.")
+                    emptyText(isSuitcase
+                        ? "Aucune valise archivée. « Voyage fini » range ici la valise d'un voyage."
+                        : "Rien encore. Ce que tu termines ici est gardé avec ton avis.")
                 }
             } else {
                 ForEach(todo) { task in
-                    memoryTodoRow(task, today: today)
+                    if isSuitcase {
+                        suitcaseRow(task, today: today)
+                    } else {
+                        memoryTodoRow(task, today: today)
+                    }
                 }
                 if todo.isEmpty {
-                    emptyText("Rien en attente. Note une envie juste au-dessus.")
+                    emptyText(isSuitcase
+                        ? "Aucune valise en cours. Nomme ton voyage juste au-dessus."
+                        : "Rien en attente. Note une envie juste au-dessus.")
                 }
             }
+        }
+    }
+
+    /// Valise en cours : on l'ouvre pour cocher ; pas de planification, pas de rond « fait ».
+    private func suitcaseRow(_ task: TaskItem, today: DayKey) -> some View {
+        NavigationLink(value: task) {
+            TaskRow(task: task, today: today)
+                .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button("Voyage fini", systemImage: "archivebox") {
+                withAnimation(.spring(duration: 0.3)) { run { try store.complete(task, review: nil, note: nil) } }
+                doneCount += 1
+            }
+            Button("Supprimer", systemImage: "trash", role: .destructive) { run { try store.delete(task) } }
         }
     }
 

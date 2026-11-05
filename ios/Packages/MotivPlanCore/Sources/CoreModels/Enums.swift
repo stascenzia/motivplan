@@ -116,11 +116,14 @@ public enum SectionTemplate: String, Sendable, Hashable, CaseIterable, Codable {
     case voyage
     /// Liste simple : un titre et une note.
     case liste
+    /// Valise d'un voyage : un inventaire par catégorie. Coché à l'aller, décoché au retour ;
+    /// « Voyage fini » l'archive.
+    case valise
 
     public var kind: SectionKind {
         switch self {
         case .courses: .checklist
-        case .film, .recette, .liste: .memory
+        case .film, .recette, .liste, .valise: .memory
         case .voyage: .periods
         }
     }
@@ -129,7 +132,7 @@ public enum SectionTemplate: String, Sendable, Hashable, CaseIterable, Codable {
     public var asksReview: Bool {
         switch self {
         case .film, .recette, .voyage: true
-        case .courses, .liste: false
+        case .courses, .liste, .valise: false
         }
     }
 
@@ -146,6 +149,7 @@ public enum SectionTemplate: String, Sendable, Hashable, CaseIterable, Codable {
         case .checklist: return .courses
         case .periods: return .voyage
         case .memory:
+            if ["valise", "bagage"].contains(where: { lowered.contains($0) }) { return .valise }
             if ["recette", "cuisine", "plat"].contains(where: { lowered.contains($0) }) { return .recette }
             if ["film", "série", "serie", "ciné"].contains(where: { lowered.contains($0) }) { return .film }
             return .liste
@@ -158,10 +162,25 @@ public struct Subtask: Codable, Sendable, Hashable, Identifiable {
     public var id: UUID
     public var title: String
     public var isDone: Bool
+    /// Catégorie d'un article de valise (« Vêtements »…) ; `nil` pour une étape de tâche.
+    public var category: String?
 
-    public init(id: UUID = UUID(), title: String, isDone: Bool = false) {
+    public init(id: UUID = UUID(), title: String, isDone: Bool = false, category: String? = nil) {
         self.id = id
         self.title = title
         self.isDone = isDone
+        self.category = category
+    }
+}
+
+/// Catégories d'une valise, dans l'ordre d'affichage. Un article sans catégorie connue va dans
+/// la dernière.
+public enum PackingCategory {
+    public static let all = ["Vêtements", "Sac à dos", "Divers"]
+    public static var fallback: String { all[all.count - 1] }
+
+    public static func of(_ item: Subtask) -> String {
+        guard let category = item.category, all.contains(category) else { return fallback }
+        return category
     }
 }

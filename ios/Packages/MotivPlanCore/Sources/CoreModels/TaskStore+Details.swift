@@ -6,10 +6,10 @@ extension TaskStore {
     // MARK: Sous-tâches
 
     @discardableResult
-    public func addSubtask(_ title: String, to task: TaskItem) throws -> Subtask {
+    public func addSubtask(_ title: String, category: String? = nil, to task: TaskItem) throws -> Subtask {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw StoreError.emptyTitle }
-        let subtask = Subtask(title: trimmed)
+        let subtask = Subtask(title: trimmed, category: category)
         try setSubtasks(task.subtasks + [subtask], of: task)
         return subtask
     }

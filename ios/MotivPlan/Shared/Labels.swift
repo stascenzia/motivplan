@@ -125,6 +125,7 @@ extension SectionTemplate {
         case .recette: "Recettes"
         case .voyage: "Voyages"
         case .liste: "Liste simple"
+        case .valise: "Valises"
         }
     }
 
@@ -135,6 +136,7 @@ extension SectionTemplate {
         case .recette: "fork.knife"
         case .voyage: "airplane"
         case .liste: "list.bullet"
+        case .valise: "suitcase"
         }
     }
 
@@ -145,6 +147,7 @@ extension SectionTemplate {
         case .recette: "Recettes à essayer, avec les ingrédients et les étapes. Une fois faites, ton avis et des photos."
         case .voyage: "Voyages et vacances : lieu et dates, en bandeau dans le calendrier. Après, ton avis et des photos."
         case .liste: "Une liste d'idées : un titre et une note, rien de plus."
+        case .valise: "Une valise par voyage, rangée en Vêtements, Sac à dos et Divers : coche à l'aller, décoche au retour, puis « Voyage fini » l'archive."
         }
     }
 
@@ -156,6 +159,7 @@ extension SectionTemplate {
         case .recette: "Nouvelle recette"
         case .voyage: "Nouveau voyage"
         case .liste: "Nouvelle idée"
+        case .valise: "Nouvelle valise"
         }
     }
 
@@ -167,6 +171,7 @@ extension SectionTemplate {
         case .recette: "Curry de lentilles…"
         case .voyage: "Lisbonne, vacances de Noël…"
         case .liste: "Une idée…"
+        case .valise: "Lisbonne, week-end ski…"
         }
     }
 
@@ -198,7 +203,7 @@ extension SectionTemplate {
             ]
         case .voyage:
             [TemplateField(key: "place", label: "Lieu", style: .text("Ville, pays…"))]
-        case .courses, .liste:
+        case .courses, .liste, .valise:
             []
         }
     }

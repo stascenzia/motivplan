@@ -19,7 +19,7 @@ extension TaskStore {
         task.statusRaw = TaskStatus.scheduled.rawValue
         let subtasks = task.subtasks
         if subtasks.contains(where: \.isDone) {
-            task.subtasksRaw = Self.encode(subtasks.map { Subtask(id: $0.id, title: $0.title) })
+            task.subtasksRaw = Self.encode(subtasks.map { Subtask(id: $0.id, title: $0.title, category: $0.category) })
         }
         try schedule(task, on: day)
     }
