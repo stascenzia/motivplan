@@ -181,7 +181,7 @@ struct SectionView: View {
     private var footer: String {
         switch (section.isPlannable, section.repeatRule) {
         case (false, _): "Ces tâches ne se posent pas dans la journée."
-        case (true, .daily): "Posées seules dans ta journée chaque matin."
+        case (true, .daily): "Elles attendent chaque jour dans le tiroir : pose-les dans ta journée."
         case (true, .permanent): "Toujours disponibles : cochées, elles restent ici avec la date de la dernière fois."
         case (true, .none): "Appui long sur une tâche pour la planifier."
         }

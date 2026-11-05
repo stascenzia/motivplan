@@ -59,15 +59,20 @@ struct TaskActionsMenu: View {
         }
 
         Menu {
-            Picker("Étiquette", selection: Binding(
-                get: { task.tag },
-                set: { value in run { try store.setTag(value, of: task) } }
-            )) {
-                Text("Aucune").tag(TaskTag?.none)
-                ForEach(TaskTag.allCases, id: \.self) { Label($0.label, systemImage: $0.symbol).tag(Optional($0)) }
+            // Plusieurs étiquettes possibles (ADR-018) : chacune se coche ou se décoche.
+            ForEach(TaskTag.allCases, id: \.self) { tag in
+                Toggle(isOn: Binding(
+                    get: { task.tags.contains(tag) },
+                    set: { _ in run { try store.toggleTag(tag, of: task) } }
+                )) {
+                    Label(tag.label, systemImage: tag.symbol)
+                }
+            }
+            if !task.tags.isEmpty {
+                Button("Aucune", systemImage: "xmark") { run { try store.setTags([], of: task) } }
             }
         } label: {
-            Label("Étiquette", systemImage: "tag")
+            Label("Étiquettes", systemImage: "tag")
         }
 
         Menu {

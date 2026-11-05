@@ -82,6 +82,8 @@ struct RootView: View {
             case .active:
                 let store = TaskStore(context: context)
                 try? store.ensureDefaultSections()
+                // Une fois : les quotidiennes posées seules retournent dans le tiroir (ADR-018).
+                _ = try? store.releaseAutoPlacedDailies()
                 _ = try? store.rollover()
                 refreshWidgets()
                 // Synchro au passage au premier plan, après le report (plan, §Synchronisation),

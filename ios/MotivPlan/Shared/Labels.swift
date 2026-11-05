@@ -55,8 +55,19 @@ extension SectionRepeat {
     var explanation: String {
         switch self {
         case .none: "Une fois faite, la tâche est terminée."
-        case .daily: "Posée seule dans la journée chaque matin, cochée ou non la veille."
+        case .daily: "Attend chaque jour dans le tiroir : tu la poses dans ta journée quand tu veux."
         case .permanent: "Cochée, elle reste dans la boîte avec la date de la dernière fois."
+        }
+    }
+}
+
+extension TaskRepeat {
+    var label: String {
+        switch self {
+        case .daily: "Chaque jour"
+        case .weekdays: "En semaine"
+        case .weekly: "Chaque semaine"
+        case .monthly: "Chaque mois"
         }
     }
 }
@@ -165,13 +176,17 @@ extension SectionTemplate {
         case .film:
             [
                 TemplateField(key: "format", label: "Format", style: .choice(["Film", "Série"])),
-                TemplateField(key: "genre", label: "Genre", style: .choice([
+                TemplateField(key: "seasons", label: "Saisons", style: .number("Nombre de saisons"),
+                              showsWhen: .init(key: "format", value: "Série")),
+                // Plusieurs genres, un par ligne dans `genres` ; `genre` garde le premier.
+                TemplateField(key: "genres", label: "Genres", style: .multiChoice([
                     "Action", "Animation", "Aventure", "Comédie", "Documentaire", "Drame",
                     "Horreur", "Policier", "Romance", "Science-fiction", "Thriller",
                 ])),
                 TemplateField(key: "platform", label: "Plateforme", style: .choice([
-                    "Netflix", "Prime Video", "Disney+", "Canal+", "Apple TV+", "Max", "Cinéma",
-                ])),
+                    "Netflix", "Prime Video", "Disney+", "Canal+", "Apple TV+", "HBO Max", "Arte",
+                    "France TV", "Cinéma",
+                ], custom: true)),
                 TemplateField(key: "summary", label: "Résumé", style: .multiline("De quoi ça parle, en quelques mots")),
             ]
         case .recette:
@@ -195,26 +210,72 @@ struct TemplateField: Identifiable, Hashable {
     enum Style: Hashable {
         case text(String)
         case multiline(String)
-        case choice([String])
-        /// Nombre entier (couverts d'une recette).
+        /// Une valeur parmi des choix ; `custom` : l'utilisateur peut ajouter les siennes (plateformes).
+        case choice([String], custom: Bool = false)
+        /// Plusieurs valeurs, une par ligne (genres).
+        case multiChoice([String])
+        /// Nombre entier (couverts d'une recette, saisons d'une série).
         case number(String)
+    }
+
+    /// Le champ n'apparaît que si un autre champ a cette valeur (saisons d'une série).
+    struct Condition: Hashable {
+        let key: String
+        let value: String
     }
 
     let key: String
     let label: String
     let style: Style
+    var showsWhen: Condition?
 
     var id: String { key }
+
+    /// Valeurs d'un choix multiple, une par ligne. `genres` reprend l'ancien champ `genre` s'il est seul.
+    static func values(_ key: String, in fields: [String: String]) -> [String] {
+        let raw = fields[key] ?? (key == "genres" ? fields["genre"] : nil) ?? ""
+        return raw.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
 }
 
 enum TemplateFields {
-    /// Clés résumées sur une ligne, dans cet ordre : « Série · Drame · Netflix », « Lisbonne ».
-    private static let summaryKeys = ["format", "genre", "platform", "place"]
-
+    /// Résumé sur une ligne : « Série · 3 saisons · Drame, Comédie · Netflix », « Lisbonne ».
     static func summary(of task: TaskItem) -> String? {
         let fields = task.fields
-        let parts = summaryKeys.compactMap { fields[$0] }
+        var parts: [String] = []
+        if let format = fields["format"] { parts.append(format) }
+        if fields["format"] == "Série", let seasons = fields["seasons"].flatMap(Int.init), seasons > 0 {
+            parts.append(seasons == 1 ? "1 saison" : "\(seasons) saisons")
+        }
+        let genres = TemplateField.values("genres", in: fields)
+        if !genres.isEmpty { parts.append(genres.prefix(2).joined(separator: ", ")) }
+        if let platform = fields["platform"] { parts.append(platform) }
+        if let place = fields["place"] { parts.append(place) }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}
+
+/// Valeurs ajoutées par l'utilisateur à un choix (« HBO », « Arte »…), proposées ensuite partout.
+/// Gardées sur l'iPhone : ce sont des raccourcis de saisie, la valeur choisie voyage avec l'entrée.
+enum CustomChoices {
+    private static func key(_ field: String) -> String { "templates.customChoices.\(field)" }
+
+    static func values(for field: String) -> [String] {
+        UserDefaults.standard.stringArray(forKey: key(field)) ?? []
+    }
+
+    static func add(_ value: String, for field: String) {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        var values = values(for: field)
+        guard !values.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) else { return }
+        values.append(trimmed)
+        UserDefaults.standard.set(values, forKey: key(field))
+    }
+
+    static func remove(_ value: String, for field: String) {
+        UserDefaults.standard.set(values(for: field).filter { $0 != value }, forKey: key(field))
     }
 }
 

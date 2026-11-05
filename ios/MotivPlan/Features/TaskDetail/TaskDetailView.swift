@@ -65,6 +65,9 @@ struct TaskDetailView: View {
                     durationCard
                     anchorCard
                 }
+                if kind == .tasks, section?.isPlannable ?? true, section?.repeatRule != .daily {
+                    RepeatCard(rule: task.taskRepeat) { rule in run { try store.setRepeat(rule, of: task) } }
+                }
                 if let section, section.keepsMemory || section.asksReview {
                     memoryCard(section)
                 }
@@ -373,14 +376,15 @@ struct TaskDetailView: View {
         .card()
     }
 
-    /// L'étiquette donne sa couleur à la tâche (décision du 2026-10-15).
+    /// Plusieurs étiquettes possibles (ADR-018) ; la plus prioritaire donne sa couleur à la tâche.
     private var tagCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            cardTitle("Étiquette")
+        let tags = task.tags
+        return VStack(alignment: .leading, spacing: 10) {
+            cardTitle("Étiquettes")
             FlowLayout(spacing: 6) {
                 ForEach(TaskTag.allCases, id: \.self) { tag in
-                    choice(tag.label, dot: TagColors.of(tag).vivid, selected: task.tag == tag) {
-                        run { try store.setTag(task.tag == tag ? nil : tag, of: task) }
+                    choice(tag.label, dot: TagColors.of(tag).vivid, selected: tags.contains(tag)) {
+                        run { try store.toggleTag(tag, of: task) }
                     }
                 }
             }
@@ -390,12 +394,17 @@ struct TaskDetailView: View {
 
     private func dueCard(today: DayKey) -> some View {
         let due = task.dueDate
-        let custom = due.map { $0 != store.today && $0 != store.tomorrow } ?? false
+        let endOfWeek = store.endOfThisWeek
+        let showsWeek = endOfWeek != store.today && endOfWeek != store.tomorrow
+        let custom = due.map { $0 != store.today && $0 != store.tomorrow && !(showsWeek && $0 == endOfWeek) } ?? false
         return VStack(alignment: .leading, spacing: 10) {
             cardTitle("Échéance")
             FlowLayout(spacing: 6) {
                 dueChoice("Aujourd'hui", selected: due == store.today) { run { try store.setDueDate(store.today, of: task) } }
                 dueChoice("Demain", selected: due == store.tomorrow) { run { try store.setDueDate(store.tomorrow, of: task) } }
+                if showsWeek {
+                    dueChoice("Cette semaine", selected: due == endOfWeek) { run { try store.setDueDate(endOfWeek, of: task) } }
+                }
                 dueChoice(custom ? DayLabel.text(for: due ?? today, today: today) : "Choisir…", selected: custom,
                           warning: task.isOverdue(today: today)) {
                     dayPicker = DayPickerRequest(kind: .due, task: task)

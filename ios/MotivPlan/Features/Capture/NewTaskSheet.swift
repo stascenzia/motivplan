@@ -174,6 +174,9 @@ struct NewTaskSheet: View {
         if section?.isDayPlannable ?? true {
             dayCard(today: today, section: section)
             durationCard(section: section)
+            if section?.repeatRule != .daily {
+                RepeatCard(rule: draft.repeatRule) { draft.repeatRule = $0 }
+            }
         }
         tagCard
         dueCard(today: today)
@@ -255,7 +258,7 @@ struct NewTaskSheet: View {
         return VStack(alignment: .leading, spacing: 10) {
             CardTitle(text: "Jour")
             if section?.repeatRule == .daily {
-                Text("Posée seule dans ta journée chaque matin.")
+                Text("Attend chaque jour dans le tiroir : tu la poses quand tu veux.")
                     .font(.meta)
                     .foregroundStyle(Palette.textTertiary)
             } else {
@@ -302,11 +305,15 @@ struct NewTaskSheet: View {
 
     private var tagCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            CardTitle(text: "Étiquette")
+            CardTitle(text: "Étiquettes")
             FlowLayout(spacing: 6) {
                 ForEach(TaskTag.allCases, id: \.self) { tag in
-                    ChoiceChip(label: tag.label, dot: TagColors.of(tag).vivid, selected: draft.tag == tag) {
-                        draft.tag = draft.tag == tag ? nil : tag
+                    ChoiceChip(label: tag.label, dot: TagColors.of(tag).vivid, selected: draft.tags.contains(tag)) {
+                        if draft.tags.contains(tag) {
+                            draft.tags.removeAll { $0 == tag }
+                        } else {
+                            draft.tags.append(tag)
+                        }
                     }
                 }
             }
@@ -363,7 +370,8 @@ struct NewTaskSheet: View {
             draft.scheduledDate = nil
             draft.durationMin = nil
             draft.dueDate = nil
-            draft.tag = nil
+            draft.tags = []
+            draft.repeatRule = nil
             draft.subtasks = []
             if section?.template == nil { draft.fields = [:] }
             if section?.kind == .periods {

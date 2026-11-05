@@ -22,10 +22,41 @@ public enum Review: String, Sendable, Hashable, CaseIterable, Codable {
 public enum SectionRepeat: String, Sendable, Hashable, CaseIterable, Codable {
     /// Ponctuelle : faite, elle est terminée.
     case none
-    /// Posée seule dans la journée chaque matin.
+    /// Revient chaque jour dans le tiroir, à poser soi-même (ADR-018).
     case daily
     /// Jamais consommée : cochée, elle reste disponible.
     case permanent
+}
+
+/// Répétition d'une tâche planifiée (ADR-018) : passé son jour, faite ou non, elle se replanifie
+/// seule sur sa prochaine date. Rangée dans les champs de la tâche (`fieldsRaw`, clé `repeat`).
+public enum TaskRepeat: String, Sendable, Hashable, CaseIterable, Codable {
+    case daily
+    /// Du lundi au vendredi.
+    case weekdays
+    case weekly
+    case monthly
+
+    /// Première date de la répétition à partir de `from` (inclus), la série partant de `origin`.
+    public func next(after origin: DayKey, onOrAfter from: DayKey, calendar: Calendar = .current) -> DayKey? {
+        guard let start = DayKeys.date(from: origin, calendar: calendar),
+              let floor = DayKeys.date(from: from, calendar: calendar) else { return nil }
+        var candidate = start
+        // Au plus un peu plus de deux ans de pas : une tâche oubliée longtemps reprend quand même.
+        for step in 1...800 {
+            let next: Date?
+            switch self {
+            case .daily, .weekdays: next = calendar.date(byAdding: .day, value: 1, to: candidate)
+            case .weekly: next = calendar.date(byAdding: .day, value: 7, to: candidate)
+            case .monthly: next = calendar.date(byAdding: .month, value: step, to: start)
+            }
+            guard let next else { return nil }
+            candidate = next
+            if self == .weekdays, calendar.isDateInWeekend(candidate) { continue }
+            if candidate >= floor { return DayKeys.key(for: candidate, calendar: calendar) }
+        }
+        return nil
+    }
 }
 
 /// Type d'une section, qui décide de son espace (ADR-015) : la to-do (boîte, tiroir, journée) ou
@@ -44,11 +75,18 @@ public enum SectionKind: String, Sendable, Hashable, CaseIterable, Codable {
     public var isMemorySpace: Bool { self != .tasks }
 
     /// Type d'une section créée avant la v2, d'après ses règles et son nom.
+    /// Un nom de voyage décide avant les règles : une section « Trips » qui gardait la mémoire reste
+    /// une section de périodes (dates, lieu, calendrier).
     public static func inferred(name: String, isPlannable: Bool, keepsMemory: Bool) -> SectionKind {
+        if isTripName(name) { return .periods }
         if keepsMemory { return .memory }
-        let lowered = name.lowercased()
-        if ["voyage", "trip", "vacance", "séjour"].contains(where: { lowered.contains($0) }) { return .periods }
         return isPlannable ? .tasks : .checklist
+    }
+
+    /// « Voyages », « Trips », « Vacances », « Séjours »…
+    public static func isTripName(_ name: String) -> Bool {
+        let lowered = name.lowercased()
+        return ["voyage", "trip", "vacance", "séjour", "sejour"].contains(where: { lowered.contains($0) })
     }
 }
 

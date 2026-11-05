@@ -27,11 +27,14 @@ struct TaskRow: View {
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            if let tag = task.tag {
-                Circle()
-                    .fill(TagColors.of(tag).vivid)
-                    .frame(width: 8, height: 8)
-                    .accessibilityLabel(tag.label)
+            // Une pastille par étiquette (ADR-018).
+            HStack(spacing: 3) {
+                ForEach(task.tags, id: \.self) { tag in
+                    Circle()
+                        .fill(TagColors.of(tag).vivid)
+                        .frame(width: 8, height: 8)
+                        .accessibilityLabel(tag.label)
+                }
             }
         }
         .padding(.horizontal, 14)

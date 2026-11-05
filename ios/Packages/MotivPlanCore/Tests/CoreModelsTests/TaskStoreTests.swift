@@ -272,21 +272,163 @@ struct TaskStoreTests {
         #expect(try store.sections().map(\.name) == SectionPreset.all.map(\.name))
     }
 
-    @Test("Une quotidienne est posée aujourd'hui, puis chaque matin même cochée")
+    @Test("Une quotidienne attend dans le tiroir ; posée la veille, elle y revient le lendemain (ADR-018)")
     func dailyTask() throws {
         let daily = try store.createSection(name: "Quotidiennes", defaultDuration: 15, repeatRule: .daily)
         let bed = try store.capture("Faire le lit", source: .manual)
         try store.setSection(daily, of: bed)
-        #expect(bed.scheduledDate == store.today)
-        #expect(bed.durationMin == 15)
+        #expect(bed.scheduledDate == nil)
+        #expect(bed.status == .inbox)
 
-        // La veille, cochée : le lendemain elle revient non cochée, sans compter de report.
-        bed.scheduledDate = "2026-10-12"
+        // Posée la veille à 8 h et cochée : le lendemain elle revient dans le tiroir, non cochée,
+        // avec son heure, sans compter de report.
+        try store.schedule(bed, on: "2026-10-12")
+        try store.setAnchor(8 * 60, of: bed)
+        #expect(bed.durationMin == 15)
         try store.toggleDone(bed)
+        let shower = try store.capture("Douche", source: .manual)
+        try store.setSection(daily, of: shower)
+        try store.schedule(shower, on: "2026-10-12")
         try store.rollover(defaults: volatileDefaults())
+        for task in [bed, shower] {
+            #expect(task.status == .inbox)
+            #expect(task.scheduledDate == nil)
+            #expect(task.completedAt == nil)
+            #expect(task.postponeCount == 0)
+        }
+        #expect(bed.isAnchored)
+        #expect(bed.anchorTime == 8 * 60)
+
+        // Reposée aujourd'hui, elle reprend son heure.
+        try store.schedule(bed, on: store.today)
+        #expect(bed.timelineItem?.anchorStart == 8 * 60)
+    }
+
+    @Test("Une quotidienne cochée depuis le tiroir revient le lendemain")
+    func dailyDoneFromDrawer() throws {
+        let daily = try store.createSection(name: "Quotidiennes", repeatRule: .daily)
+        let bed = try store.capture("Faire le lit", source: .manual)
+        try store.setSection(daily, of: bed)
+        try store.toggleDone(bed)
+        bed.completedAt = Date(timeIntervalSince1970: 1_791_878_400 - 86_400)
+        try store.rollover(defaults: volatileDefaults())
+        #expect(bed.status == .inbox)
+        #expect(bed.completedAt == nil)
+    }
+
+    @Test("Une fois : les quotidiennes posées seules retournent dans le tiroir, les autres restent")
+    func releaseAutoPlacedDailies() throws {
+        let daily = try store.createSection(name: "Quotidiennes", repeatRule: .daily)
+        let bed = try store.capture("Faire le lit", source: .manual)
+        try store.setSection(daily, of: bed)
+        try store.schedule(bed, on: store.today)
+        let done = try store.capture("Méditer", source: .manual)
+        try store.setSection(daily, of: done)
+        try store.schedule(done, on: store.today)
+        try store.toggleDone(done)
+        let report = try store.capture("Rapport", source: .manual)
+        try store.schedule(report, on: store.today)
+
+        let defaults = volatileDefaults()
+        #expect(try store.releaseAutoPlacedDailies(defaults: defaults) == 1)
+        #expect(bed.status == .inbox)
+        #expect(done.status == .done)
+        #expect(try displayed() == ["Méditer", "Rapport"])
+
+        // Deuxième lancement : une quotidienne posée à la main reste posée.
+        try store.schedule(bed, on: store.today)
+        #expect(try store.releaseAutoPlacedDailies(defaults: defaults) == 0)
         #expect(bed.scheduledDate == store.today)
-        #expect(bed.status == .scheduled)
-        #expect(bed.postponeCount == 0)
+    }
+
+    @Test("Une section « Trips » rangée en mémoire avec avis devient une section de voyages")
+    func repairTrips() throws {
+        let trips = try store.createSection(name: "Trips", kind: .memory)
+        let films = try store.createSection(name: "Films", kind: .memory)
+        #expect(trips.template == .liste)
+        try store.releaseAutoPlacedDailies(defaults: volatileDefaults())
+        #expect(trips.kind == .periods)
+        #expect(trips.template == .voyage)
+        #expect(films.kind == .memory)
+        #expect(SectionKind.inferred(name: "Mes trips", isPlannable: false, keepsMemory: true) == .periods)
+    }
+
+    @Test("Vider la journée : non faites en boîte, quotidiennes au tiroir, faites gardées ; annulable")
+    func clearDay() throws {
+        let daily = try store.createSection(name: "Quotidiennes", repeatRule: .daily)
+        let tasks = try day(["A", "B", "C"])
+        try store.setAnchor(15 * 60, of: tasks[1])
+        try store.toggleDone(tasks[2])
+        let bed = try store.capture("Faire le lit", source: .manual)
+        try store.setSection(daily, of: bed)
+        try store.schedule(bed, on: store.today)
+        try store.setAnchor(8 * 60, of: bed)
+        let before = try displayed()
+
+        let clearing = try store.clearDay(store.today)
+        #expect(clearing.count == 3)
+        #expect(try displayed() == ["C"])
+        #expect(tasks[0].status == .inbox)
+        #expect(!tasks[1].isAnchored)
+        #expect(bed.status == .inbox)
+        #expect(bed.isAnchored)
+
+        try store.restore(clearing)
+        #expect(try displayed() == before)
+        #expect(tasks[1].anchorTime == 15 * 60)
+    }
+
+    @Test("Une tâche répétée chaque semaine revient sur sa prochaine date, non cochée, étapes remises")
+    func weeklyRepeat() throws {
+        let sport = try store.capture("Sport", source: .manual)
+        try store.schedule(sport, on: "2026-10-06")
+        try store.setRepeat(.weekly, of: sport)
+        try store.addSubtask("Échauffement", to: sport)
+        try store.toggleSubtask(try #require(sport.subtasks.first).id, of: sport)
+        try store.toggleDone(sport)
+        let late = try store.capture("Courrier", source: .manual)
+        try store.schedule(late, on: "2026-10-12")
+        try store.setRepeat(.monthly, of: late)
+
+        try store.rollover(defaults: volatileDefaults())
+        // Mardi 6 → mardi 13 (aujourd'hui) ; lundi 12 non fait, mensuel → 12 novembre.
+        #expect(sport.scheduledDate == store.today)
+        #expect(sport.status == .scheduled)
+        #expect(sport.completedAt == nil)
+        #expect(sport.subtasks.allSatisfy { !$0.isDone })
+        #expect(late.scheduledDate == "2026-11-12")
+        #expect(late.postponeCount == 0)
+    }
+
+    @Test("Prochaine date d'une répétition")
+    func repeatNext() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Paris")!
+        // Vendredi 9 octobre 2026.
+        #expect(TaskRepeat.daily.next(after: "2026-10-09", onOrAfter: "2026-10-13", calendar: calendar) == "2026-10-13")
+        #expect(TaskRepeat.weekdays.next(after: "2026-10-09", onOrAfter: "2026-10-10", calendar: calendar) == "2026-10-12")
+        #expect(TaskRepeat.weekly.next(after: "2026-10-09", onOrAfter: "2026-10-13", calendar: calendar) == "2026-10-16")
+        #expect(TaskRepeat.monthly.next(after: "2026-01-31", onOrAfter: "2026-02-01", calendar: calendar) == "2026-02-28")
+    }
+
+    @Test("Plusieurs étiquettes : la plus prioritaire donne la couleur")
+    func multipleTags() throws {
+        let task = try store.capture("Rapport", source: .manual)
+        try store.toggleTag(.detente, of: task)
+        try store.toggleTag(.urgent, of: task)
+        #expect(task.tags == [.urgent, .detente])
+        #expect(task.tag == .urgent)
+        try store.toggleTag(.urgent, of: task)
+        #expect(task.tags == [.detente])
+        #expect(task.fields["tags"] == nil)
+        try store.setTag(nil, of: task)
+        #expect(task.tags.isEmpty)
+        #expect(task.tagRaw == nil)
+
+        let created = try store.create(TaskDraft(title: "Sport", tags: [.medium, .travail], repeatRule: .weekly))
+        #expect(created.tag == .travail)
+        #expect(created.tags == [.travail, .medium])
+        #expect(created.taskRepeat == .weekly)
     }
 
     @Test("Une permanente cochée depuis la boîte y reste, datée")
@@ -383,10 +525,10 @@ struct TaskStoreTests {
         #expect(milk.scheduledDate == nil)
     }
 
-    @Test("Une quotidienne posée seule reste comptée dans sa section")
+    @Test("Une quotidienne posée reste comptée dans sa section")
     func openTasksIncludeScheduled() throws {
         let daily = try store.createSection(name: "Quotidiennes", repeatRule: .daily)
-        let bed = try store.create(TaskDraft(title: "Faire le lit", sectionId: daily.id))
+        let bed = try store.create(TaskDraft(title: "Faire le lit", sectionId: daily.id, scheduledDate: store.today))
         #expect(bed.scheduledDate == store.today)
         let open = try store.context.fetch(TaskItem.openDescriptor)
         #expect(open.map(\.id) == [bed.id])

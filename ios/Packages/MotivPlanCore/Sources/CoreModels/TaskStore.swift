@@ -46,21 +46,25 @@ public struct TaskStore {
     }
 
     /// Crée une tâche avec tous ses détails, rangée directement dans sa section (bouton « + »).
-    /// Une quotidienne est posée aujourd'hui ; un jour choisi n'est retenu que si la section se planifie.
+    /// Un jour choisi n'est retenu que si la section se planifie.
     @discardableResult
     public func create(_ draft: TaskDraft, source: TaskSource = .manual) throws -> TaskItem {
         if let minutes = draft.durationMin, minutes < Durations.minimum { throw StoreError.durationTooShort }
         let task = try capture(draft.title, source: source, space: draft.space)
         let notes = draft.notes.trimmingCharacters(in: .whitespacesAndNewlines)
         task.notes = notes.isEmpty ? nil : notes
-        task.tagRaw = draft.tag?.rawValue
+        var fields = draft.fields
+        let tags = TaskTag.allCases.filter(draft.tags.contains)
+        task.tagRaw = tags.first?.rawValue
+        fields[TaskItem.tagsField] = tags.count > 1 ? tags.map(\.rawValue).joined(separator: ",") : nil
+        fields[TaskItem.repeatField] = draft.repeatRule?.rawValue
         task.dueDate = draft.dueDate
         task.durationMin = draft.durationMin
         task.subtasksRaw = Self.encode(draft.subtasks.compactMap { title in
             let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty ? nil : Subtask(title: trimmed)
         })
-        task.fieldsRaw = Self.encode(fields: draft.fields)
+        task.fieldsRaw = Self.encode(fields: fields)
         touch(task)
         let section = try sections().first { $0.id == draft.sectionId }
         try setSection(section, of: task)
@@ -103,15 +107,34 @@ public struct TaskStore {
         try commit(task)
     }
 
+    /// Étiquette unique : remplace toutes les autres.
     public func setTag(_ tag: TaskTag?, of task: TaskItem) throws {
-        guard tag?.rawValue != task.tagRaw else { return }
-        task.tagRaw = tag?.rawValue
+        try setTags(tag.map { [$0] } ?? [], of: task)
+    }
+
+    /// Plusieurs étiquettes (ADR-018) : la plus prioritaire va dans `tagRaw` (couleur, tri, anciennes
+    /// versions), la liste complète dans les champs.
+    public func setTags(_ tags: [TaskTag], of task: TaskItem) throws {
+        let ordered = TaskTag.allCases.filter(tags.contains)
+        var fields = task.fields
+        fields[TaskItem.tagsField] = ordered.count > 1 ? ordered.map(\.rawValue).joined(separator: ",") : nil
+        let raw = Self.encode(fields: fields)
+        guard ordered.first?.rawValue != task.tagRaw || raw != task.fieldsRaw else { return }
+        task.tagRaw = ordered.first?.rawValue
+        task.fieldsRaw = raw
         try commit(task)
     }
 
-    /// Range la tâche dans une section (`nil` : « À trier » de son espace). Une quotidienne est posée
-    /// aujourd'hui tout de suite ; une section non planifiable retire la tâche de la journée. Rangée,
-    /// l'entrée prend l'espace de sa section : retirée ensuite, elle revient dans le bon « À trier ».
+    /// Ajoute l'étiquette, ou la retire si la tâche l'a déjà.
+    public func toggleTag(_ tag: TaskTag, of task: TaskItem) throws {
+        let current = task.tags
+        try setTags(current.contains(tag) ? current.filter { $0 != tag } : current + [tag], of: task)
+    }
+
+    /// Range la tâche dans une section (`nil` : « À trier » de son espace). Une section non
+    /// planifiable retire la tâche de la journée ; une quotidienne attend dans le tiroir (ADR-018).
+    /// Rangée, l'entrée prend l'espace de sa section : retirée ensuite, elle revient dans le bon
+    /// « À trier ».
     public func setSection(_ section: TaskSection?, of task: TaskItem) throws {
         guard section?.id != task.sectionId else { return }
         let previous = try self.section(of: task)
@@ -124,8 +147,6 @@ public struct TaskStore {
             task.spaceRaw = section.kind.isMemorySpace ? TaskSpace.memory.rawValue : nil
             if !section.isDayPlannable, task.scheduledDate != nil {
                 try unschedule(task)
-            } else if section.repeatRule == .daily, task.scheduledDate == nil, !task.isDone {
-                try schedule(task, on: today)
             }
         }
         try save()
@@ -254,8 +275,8 @@ public struct TaskStore {
 
     /// Report silencieux à la première ouverture du jour (ADR-007) : flottantes non faites des jours
     /// passés à la suite d'aujourd'hui, ancrées ratées en boîte avec leur ancien jour pour échéance.
-    /// Les quotidiennes sont posées sur le jour, les permanentes cochées reviennent en boîte (ADR-014).
-    /// Une seule sauvegarde, idempotent.
+    /// Les quotidiennes d'hier reviennent dans le tiroir (ADR-018), les permanentes cochées en boîte
+    /// (ADR-014), les tâches répétées sur leur prochaine date (ADR-018).
     /// - Returns: le nombre de tâches déplacées.
     @discardableResult
     public func rollover(defaults: UserDefaults = AppGroup.defaults) throws -> Int {
@@ -267,17 +288,23 @@ public struct TaskStore {
         let sectionOf = { (task: TaskItem) in task.sectionId.flatMap { rules[$0] } }
         var touched = 0
 
-        // Quotidiennes : posées aujourd'hui, cochées ou non la veille, à leur place habituelle.
-        for task in all where sectionOf(task)?.repeatRule == .daily
-            && task.status != .archived && task.scheduledDate != today {
-            task.statusRaw = TaskStatus.scheduled.rawValue
-            task.scheduledDate = today
-            task.completedAt = nil
-            if task.orderIndex == nil { task.orderIndex = 0 }
-            if task.durationMin == nil { task.durationMin = sectionOf(task)?.defaultDuration }
-            touch(task)
+        // Quotidiennes : posées ou cochées un jour passé, elles reviennent dans le tiroir, non cochées,
+        // avec leur heure fixe éventuelle. On les repose soi-même.
+        for task in all where sectionOf(task)?.repeatRule == .daily && task.status != .archived {
+            let past = task.scheduledDate.map { $0 < today }
+                ?? (task.isDone && task.completedAt.map { DayKeys.key(for: $0, calendar: calendar) < today } ?? false)
+            guard past else { continue }
+            releaseToDrawer(task)
             touched += 1
         }
+        // Tâches répétées : passé leur jour, faites ou non, elles vont sur leur prochaine date.
+        var repeating: [(TaskItem, DayKey)] = []
+        for task in all where sectionOf(task)?.repeatRule != .daily && task.isOnDay {
+            guard let rule = task.taskRepeat, let day = task.scheduledDate, day < today,
+                  let next = rule.next(after: day, onOrAfter: today, calendar: calendar) else { continue }
+            repeating.append((task, next))
+        }
+        let repeatingIds = Set(repeating.map(\.0.id))
         // Permanentes cochées un jour passé : retour en boîte, la date de la dernière fois est gardée.
         for task in all where sectionOf(task)?.repeatRule == .permanent && task.isDone {
             guard let day = task.scheduledDate, day < today else { continue }
@@ -292,7 +319,7 @@ public struct TaskStore {
 
         // Jours passés à reporter, plus aujourd'hui (faites comprises) pour poser les reportées à la suite.
         let candidates = all.filter { task in
-            guard let day = task.scheduledDate, task.isOnDay,
+            guard let day = task.scheduledDate, task.isOnDay, !repeatingIds.contains(task.id),
                   sectionOf(task)?.repeatRule != .daily else { return false }
             return day < today ? task.status == .scheduled : day == today
         }
@@ -310,6 +337,10 @@ public struct TaskStore {
             task.postponeCount = change.postponeCount
             touch(task)
         }
+        for (task, next) in repeating {
+            try reschedule(task, on: next)
+        }
+        touched += repeating.count
         if !moved.isEmpty || touched > 0 {
             // Une flottante reportée peut tomber sur une ancre du jour : séquence réalignée.
             try normalizeDay(today)

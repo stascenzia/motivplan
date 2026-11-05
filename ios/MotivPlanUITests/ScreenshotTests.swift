@@ -37,6 +37,57 @@ final class ScreenshotTests: XCTestCase {
         app.buttons["OK"].tap()
     }
 
+    /// La frise défile au doigt, même en partant d'une tâche (retour du 2026-11-05) ; sa dernière
+    /// ligne ajoute une tâche d'un jour à la fin de la journée.
+    @MainActor
+    func testDayScrollsAndQuickAdd() throws {
+        let app = launch()
+        XCTAssertTrue(element(app, "Finir le rapport trimestriel").waitForExistence(timeout: 30))
+
+        let quickAdd = app.textFields["day-quick-add"]
+        XCTAssertTrue(quickAdd.waitForExistence(timeout: 15))
+        let limit = app.frame.height * 0.7
+        // La journée d'exemple dépasse l'écran : la dernière ligne est d'abord sous le pli.
+        XCTAssertGreaterThan(quickAdd.frame.minY, limit)
+        let scroll = app.scrollViews.firstMatch
+        for _ in 0..<6 where quickAdd.frame.maxY > limit {
+            scroll.swipeUp(velocity: .slow)
+        }
+        XCTAssertLessThan(quickAdd.frame.maxY, limit)
+        snapshot(app, "01b-jour-fin-de-journee")
+
+        quickAdd.tap()
+        quickAdd.typeText("Arroser les plantes\n")
+        XCTAssertTrue(element(app, "Arroser les plantes").waitForExistence(timeout: 15))
+        snapshot(app, "01c-tache-du-jour")
+    }
+
+    /// « Vider la journée » remet les tâches non faites dans la boîte ; « Annuler » les repose.
+    @MainActor
+    func testClearDay() throws {
+        let app = launch()
+        let report = element(app, "Finir le rapport trimestriel")
+        XCTAssertTrue(report.waitForExistence(timeout: 30))
+
+        app.buttons["day-menu"].tap()
+        let menuItem = app.buttons["Vider la journée"].firstMatch
+        XCTAssertTrue(menuItem.waitForExistence(timeout: 15))
+        menuItem.tap()
+        // Puis le bouton de la demande de confirmation.
+        let undo = app.buttons["day-undo-clear"]
+        for _ in 0..<5 where !undo.exists {
+            let confirm = app.buttons["Vider la journée"].firstMatch
+            if confirm.waitForExistence(timeout: 5) { confirm.tap() }
+            _ = undo.waitForExistence(timeout: 3)
+        }
+        XCTAssertTrue(undo.exists)
+        XCTAssertFalse(report.exists)
+        snapshot(app, "01d-journee-videe")
+
+        undo.tap()
+        XCTAssertTrue(report.waitForExistence(timeout: 15))
+    }
+
     @MainActor
     func testInboxScreens() throws {
         let app = launch()
@@ -98,7 +149,7 @@ final class ScreenshotTests: XCTestCase {
     }
 
     /// Sections à faire (ADR-014) : tuiles de la boîte, écran de section, éditeur. Une quotidienne
-    /// posée seule reste comptée dans sa tuile.
+    /// en attente dans le tiroir reste comptée dans sa tuile.
     @MainActor
     func testSectionScreens() throws {
         let app = launch()

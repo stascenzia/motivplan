@@ -223,6 +223,27 @@ Une entrée par décision structurante. Format court : contexte, décision, cons
 
 ---
 
+## ADR-018 — Quotidiennes dans le tiroir, répétitions, plusieurs étiquettes, « Vider la journée »
+
+**Date** : 2026-11-05 · **Statut** : figée
+
+**Contexte** : retours sur la version des lots 12 à 15 (`docs/retours-v1.md`, « Retours sur la version des lots 12 à 14 ») : la journée ne défile pas, les quotidiennes posées seules gênent (l'utilisateur veut les poser lui-même), l'édition doit permettre plusieurs étiquettes et une répétition, les courses cochées doivent sortir de la liste, les films prendre plusieurs genres, un nombre de saisons et des plateformes libres. L'utilisateur veut aussi vider une journée d'un geste et ajouter une tâche d'un jour en bas de la frise.
+
+**Décision** :
+- **Quotidiennes** : elles ne sont plus posées seules dans la journée (révise ADR-014). Elles attendent dans le tiroir, sous leur section ; on les pose soi-même. Posées ou cochées un jour passé, elles reviennent dans le tiroir au report du matin, non cochées, sans compter de report, avec leur heure fixe éventuelle. Au premier lancement de cette version, une seule fois, les quotidiennes posées seules aujourd'hui ou plus tard et pas encore faites retournent dans le tiroir.
+- **Répétition d'une tâche** (`TaskRepeat` : chaque jour, en semaine, chaque semaine, chaque mois) : passé son jour, faite ou non, la tâche se replanifie seule sur sa prochaine date, en fin de séquence, non cochée, étapes remises à faire, sans compter de report. C'est un choix de la tâche, distinct des sections quotidiennes. Une tâche jamais planifiée attend qu'on la planifie pour lancer la série.
+- **Plusieurs étiquettes** : la plus prioritaire reste dans `tagRaw` (couleur, tri, anciennes versions, backend qui n'accepte qu'une étiquette) ; la liste complète va dans `fieldsRaw` (clé `tags`), comme la répétition (clé `repeat`). Pas de nouveau champ : pas de migration de schéma, ni de changement du backend.
+- **« Vider la journée »** (menu du jour) : les tâches non faites retournent dans la boîte, les quotidiennes dans le tiroir ; les faites restent. Annulable quelques secondes : chaque tâche reprend sa place et son heure.
+- **Tâche d'un jour** : la dernière ligne de la frise ajoute une tâche posée en fin de journée, sans section. Faite, elle reste cochée comme une ponctuelle ; pas faite, elle suit le report.
+- **Défilement de la frise** : à partir d'iOS 18, le réordonnancement passe par un appui long UIKit (`UIGestureRecognizerRepresentable`) au lieu d'un `DragGesture` SwiftUI, qui empêchait la `ScrollView` de défiler. iOS 17 garde le geste SwiftUI (ADR-008 inchangé sur le principe).
+- **Courses** : un article coché sort de la liste ; les cochés restent repliés en bas pour corriger une erreur, puis « Vider les cochés ».
+- **Films et séries** : plusieurs genres (`genres`, un par ligne ; `genre` garde le premier), nombre de saisons d'une série (rempli par TMDB), plateformes ajoutées par l'utilisateur (« Autre… »), retenues sur l'iPhone pour la suite.
+- **Voyages** : une section au nom de voyage rangée en « Mémoire avec avis » sans modèle choisi devient, une fois, une section de voyages (dates, lieu, calendrier) ; le nom de voyage décide désormais avant la règle « garde la mémoire » quand le type n'est pas enregistré.
+
+**Conséquences** : pas de nouveau schéma SwiftData ni de migration Alembic. Les versions précédentes de l'app voient la première étiquette et ignorent la répétition. La journée d'exemple des tests d'interface est plus longue, pour vérifier le défilement.
+
+---
+
 ## Journal du spike Siri hors-ligne (lot 0)
 
 À remplir après le test sur appareil : modèle d'iPhone, version d'iOS, résultat verrouillé, résultat mode avion (phrase puis dictée), titres français qui ont été filtrés par Siri.

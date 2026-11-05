@@ -31,8 +31,10 @@ struct DayTimeline: View {
     @State private var celebration = 0
     @State private var showConfetti = false
     @State private var errorMessage: String?
+    @State private var quickTitle = ""
+    @FocusState private var quickFocused: Bool
 
-    private static let space = "timeline"
+    static let space = "timeline"
     private static let edgeZone: CGFloat = 70
 
     private struct DragState {
@@ -72,17 +74,18 @@ struct DayTimeline: View {
                     .scrollDisabled(drag != nil)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewportHeight = $0 }
                     .overlay(alignment: .top) { floatingBubble(byId: byId, layout: layout) }
-                    .overlay {
-                        if dayTasks.isEmpty {
-                            emptyDay
-                        }
-                    }
                     .dropDestination(for: TaskDragItem.self) { items, location in
                         drop(items, at: location.y, layout: layout)
                     } isTargeted: { targeted in
                         if targeted { drawerDetent = .peek }
                     }
                 }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay {
+            if dayTasks.isEmpty {
+                emptyDay
             }
         }
         .sensoryFeedback(.impact(weight: .medium), trigger: liftCount)
@@ -139,6 +142,7 @@ struct DayTimeline: View {
             if !layout.placements.isEmpty {
                 EndOfDayFooter(layout: layout)
             }
+            quickAdd
         }
         // Axe vertical qui relie les capsules.
         .background(alignment: .topLeading) {
@@ -206,8 +210,50 @@ struct DayTimeline: View {
                 .foregroundStyle(Palette.textSecondary)
         }
         .multilineTextAlignment(.center)
-        .allowsHitTesting(false)
+        // Toute la largeur de l'écran : sans cadre, le texte se serrait sur une colonne étroite.
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.bottom, 120)
+        .allowsHitTesting(false)
+    }
+
+    /// Dernière ligne de la frise : une tâche d'un jour, posée en fin de journée sans passer par la
+    /// boîte. Sans section, elle n'a rien à trier ; faite, elle reste cochée comme une ponctuelle ;
+    /// pas faite, elle suit le report comme les autres.
+    private var quickAdd: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "plus")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(Palette.accent)
+                .frame(width: TaskBubble.capsuleWidth, height: 36)
+                .background(Palette.accent.opacity(0.1), in: Capsule())
+            TextField("Ajouter à cette journée…", text: $quickTitle)
+                .font(.manrope(15, .semibold, relativeTo: .body))
+                .foregroundStyle(Palette.text)
+                .focused($quickFocused)
+                .submitLabel(.done)
+                .onSubmit(addQuick)
+                .accessibilityIdentifier("day-quick-add")
+        }
+        .padding(.leading, 54)
+        .padding(.top, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture { quickFocused = true }
+    }
+
+    private func addQuick() {
+        let title = quickTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
+        withAnimation(.spring(duration: 0.3)) {
+            run {
+                let task = try store.capture(title, source: .manual)
+                try store.schedule(task, on: day)
+            }
+        }
+        quickTitle = ""
+        dropCount += 1
     }
 
     /// Minute de la journée (0 à 1439).
@@ -245,8 +291,11 @@ struct DayTimeline: View {
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(Self.space)) } action: { frames[placement.id] = $0 }
         .contentShape(Rectangle())
         .onTapGesture { onSelect(task) }
-        .simultaneousGesture(reorderGesture(task, placement: placement, layout: layout, proxy: proxy),
-                             including: placement.isAnchored ? .subviews : .all)
+        .modifier(ReorderGesture(enabled: !placement.isAnchored,
+                                 legacy: reorderGesture(task, placement: placement, layout: layout, proxy: proxy),
+                                 began: { lift(task, at: $0, layout: layout) },
+                                 changed: { follow($0, layout: layout, proxy: proxy) },
+                                 ended: { finishDrag(task) }))
         .animation(.spring(duration: 0.28), value: placement.start)
         .accessibilityAction(named: "Ouvrir") { onSelect(task) }
     }
@@ -300,6 +349,32 @@ struct DayTimeline: View {
 
     // MARK: Réordonnancement
 
+    /// Appui long reconnu : la tâche se soulève sous le doigt.
+    private func lift(_ task: TaskItem, at y: CGFloat, layout: DayLayout) {
+        guard drag == nil, let frame = frames[task.id] else { return }
+        drag = DragState(id: task.id, fingerY: y, target: layout.sequence.firstIndex(of: task.id) ?? 0,
+                         height: frame.height, grabOffset: y - frame.minY)
+        liftCount += 1
+    }
+
+    private func follow(_ y: CGFloat, layout: DayLayout, proxy: ScrollViewProxy) {
+        guard drag != nil else { return }
+        drag?.fingerY = y
+        updateTarget(sequence: layout.sequence)
+        handleEdges(proxy: proxy, sequence: layout.sequence)
+    }
+
+    private func finishDrag(_ task: TaskItem) {
+        autoScroll?.cancel()
+        autoScroll = nil
+        guard let finished = drag else { return }
+        drag = nil
+        run { try store.move(task, to: finished.target) }
+        dropCount += 1
+    }
+
+    /// Geste SwiftUI d'iOS 17. À partir d'iOS 18, un glisser SwiftUI posé sur les lignes empêche la
+    /// frise de défiler : on passe par `ReorderGesture` et un appui long UIKit.
     private func reorderGesture(_ task: TaskItem, placement: Placement, layout: DayLayout,
                                 proxy: ScrollViewProxy) -> some Gesture {
         LongPressGesture(minimumDuration: 0.35)
@@ -307,34 +382,14 @@ struct DayTimeline: View {
             .onChanged { value in
                 guard case .second(true, let dragValue) = value else { return }
                 guard let dragValue else {
-                    // Appui long reconnu, le doigt n'a pas encore bougé : on soulève.
-                    if drag == nil, let frame = frames[task.id] {
-                        drag = DragState(id: task.id, fingerY: frame.midY,
-                                         target: layout.sequence.firstIndex(of: task.id) ?? 0,
-                                         height: frame.height, grabOffset: frame.height / 2)
-                        liftCount += 1
-                    }
+                    // Appui long reconnu, le doigt n'a pas encore bougé : on soulève par le milieu.
+                    if let frame = frames[task.id] { lift(task, at: frame.midY, layout: layout) }
                     return
                 }
-                let y = dragValue.location.y
-                if drag == nil, let frame = frames[task.id] {
-                    drag = DragState(id: task.id, fingerY: y,
-                                     target: layout.sequence.firstIndex(of: task.id) ?? 0,
-                                     height: frame.height, grabOffset: y - frame.minY)
-                    liftCount += 1
-                }
-                drag?.fingerY = y
-                updateTarget(sequence: layout.sequence)
-                handleEdges(proxy: proxy, sequence: layout.sequence)
+                lift(task, at: dragValue.location.y, layout: layout)
+                follow(dragValue.location.y, layout: layout, proxy: proxy)
             }
-            .onEnded { _ in
-                autoScroll?.cancel()
-                autoScroll = nil
-                guard let finished = drag else { return }
-                drag = nil
-                run { try store.move(task, to: finished.target) }
-                dropCount += 1
-            }
+            .onEnded { _ in finishDrag(task) }
     }
 
     /// Position visée : nombre d'autres lignes dont le milieu est au-dessus du doigt.

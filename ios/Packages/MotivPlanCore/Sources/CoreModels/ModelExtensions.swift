@@ -44,9 +44,27 @@ extension TaskItem {
         TaskStatus(rawValue: statusRaw) ?? .inbox
     }
 
+    /// Étiquette principale, la plus prioritaire : elle donne sa couleur à la tâche.
     public var tag: TaskTag? {
         tagRaw.flatMap(TaskTag.init(rawValue:))
     }
+
+    /// Toutes les étiquettes, de la plus prioritaire à la moins prioritaire (ADR-018). La première
+    /// reste dans `tagRaw` ; la liste complète vit dans les champs (`tags`), synchronisés tels quels.
+    public var tags: [TaskTag] {
+        let listed = (fields[Self.tagsField] ?? "").split(separator: ",")
+            .compactMap { TaskTag(rawValue: String($0)) }
+        let all = listed.isEmpty ? (tag.map { [$0] } ?? []) : listed
+        return TaskTag.allCases.filter(all.contains)
+    }
+
+    /// Répétition de la planification (ADR-018).
+    public var taskRepeat: TaskRepeat? {
+        fields[Self.repeatField].flatMap(TaskRepeat.init(rawValue:))
+    }
+
+    public static let tagsField = "tags"
+    public static let repeatField = "repeat"
 
     public var review: Review? {
         reviewRaw.flatMap(Review.init(rawValue:))
@@ -108,7 +126,7 @@ extension TaskItem {
     }
 
     /// À faire, en boîte ou posées sur un jour sans être faites : une tuile de section les compte
-    /// toutes (une quotidienne posée seule reste visible dans sa section).
+    /// toutes (une quotidienne posée reste visible dans sa section).
     public static var openDescriptor: FetchDescriptor<TaskItem> {
         let inbox = TaskStatus.inbox.rawValue
         let scheduled = TaskStatus.scheduled.rawValue

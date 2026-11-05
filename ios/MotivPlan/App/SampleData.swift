@@ -33,8 +33,9 @@ enum SampleData {
                 return task
             }
 
-            // Quotidiennes : posées seules aujourd'hui.
+            // Quotidiennes : elles attendent dans le tiroir ; l'une est déjà posée et faite (ADR-018).
             let bed = try add("Faire le lit", to: "Quotidiennes", tag: .medium)
+            try store.schedule(bed, on: today)
             _ = try add("Vider la litière de Stella", to: "Quotidiennes", tag: .medium)
 
             // Récurrentes : toujours disponibles, avec la dernière fois.
@@ -61,6 +62,16 @@ enum SampleData {
             let sport = try add("Sport", to: "Ponctuelles", tag: .detente)
             try store.setDuration(45, of: sport)
             try store.schedule(sport, on: today)
+            // Fin d'après-midi chargée : la journée dépasse l'écran et se fait défiler.
+            for (title, minutes) in [("Préparer le déjeuner", 45), ("Ranger le bureau", 30),
+                                     ("Répondre aux mails", 30), ("Lire 30 minutes", 30)] {
+                let task = try add(title, to: "Ponctuelles")
+                try store.setDuration(minutes, of: task)
+                try store.schedule(task, on: today)
+            }
+            // Répétée chaque semaine (ADR-018), en plusieurs étiquettes.
+            try store.setRepeat(.weekly, of: sport)
+            try store.setTags([.detente, .medium], of: sport)
             _ = try add("Envoyer le courrier", to: "Ponctuelles")
             try store.toggleDone(bed)
 

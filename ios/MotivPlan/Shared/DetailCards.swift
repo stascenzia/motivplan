@@ -88,6 +88,30 @@ struct DraftSubtasksCard: View {
     }
 }
 
+/// Répétition de la planification (ADR-018) : passé son jour, faite ou non, la tâche se replanifie
+/// seule sur sa prochaine date.
+struct RepeatCard: View {
+    let rule: TaskRepeat?
+    let choose: (TaskRepeat?) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            CardTitle(text: "Répétition")
+            FlowLayout(spacing: 6) {
+                ChoiceChip(label: "Aucune", selected: rule == nil) { choose(nil) }
+                ForEach(TaskRepeat.allCases, id: \.self) { value in
+                    ChoiceChip(label: value.label, selected: rule == value) { choose(value) }
+                }
+            }
+            Text(rule == nil ? "Une fois faite, la tâche est terminée."
+                             : "Une fois son jour passé, elle se replanifie seule. Planifie-la pour lancer la série.")
+                .font(.meta)
+                .foregroundStyle(Palette.textTertiary)
+        }
+        .card()
+    }
+}
+
 /// Ligne d'une étape : rond à cocher et titre, barré une fois fait.
 struct SubtaskRow: View {
     let subtask: Subtask
@@ -162,16 +186,21 @@ struct TemplateFieldsCard: View {
     let commit: (String, String?) -> Void
 
     @State private var drafts: [String: String] = [:]
+    @State private var customField: String?
+    @State private var customText = ""
+    @State private var choicesVersion = 0
     @FocusState private var focused: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            ForEach(fields) { field in
+            ForEach(fields.filter { field in field.showsWhen.map { drafts[$0.key] == $0.value } ?? true }) { field in
                 VStack(alignment: .leading, spacing: 8) {
                     CardTitle(text: field.label)
                     switch field.style {
-                    case .choice(let options):
-                        choices(field, options: options)
+                    case .choice(let options, let custom):
+                        choices(field, options: options, custom: custom)
+                    case .multiChoice(let options):
+                        multiChoices(field, options: options)
                     case .text(let prompt):
                         textField(field, prompt: prompt, multiline: false)
                     case .number(let prompt):
@@ -197,16 +226,75 @@ struct TemplateFieldsCard: View {
         }
     }
 
-    /// Toucher la valeur choisie la retire. Une valeur venue d'ailleurs reste affichée.
-    private func choices(_ field: TemplateField, options: [String]) -> some View {
+    /// Toucher la valeur choisie la retire. Une valeur venue d'ailleurs reste affichée. `custom` :
+    /// « Autre… » ajoute une valeur, retenue pour la suite (appui long pour l'oublier).
+    private func choices(_ field: TemplateField, options: [String], custom: Bool) -> some View {
         let current = drafts[field.key]
-        let all = current.map { options.contains($0) ? options : options + [$0] } ?? options
+        let added = custom ? CustomChoices.values(for: field.key).filter { !options.contains($0) } : []
+        var all = options + added
+        if let current, !all.contains(current) { all.append(current) }
         return FlowLayout(spacing: 6) {
             ForEach(all, id: \.self) { option in
                 ChoiceChip(label: option, selected: current == option) {
                     let value = current == option ? nil : option
                     drafts[field.key] = value
                     commit(field.key, value)
+                }
+                .contextMenu {
+                    if added.contains(option) {
+                        Button("Oublier « \(option) »", systemImage: "trash", role: .destructive) {
+                            CustomChoices.remove(option, for: field.key)
+                            choicesVersion += 1
+                        }
+                    }
+                }
+            }
+            if custom {
+                ChoiceChip(label: "Autre…", symbol: "plus", selected: false) {
+                    customText = ""
+                    customField = field.key
+                }
+                .accessibilityIdentifier("field-\(field.key)-other")
+            }
+        }
+        .id(choicesVersion)
+        .alert("Autre \(field.label.lowercased())", isPresented: Binding(
+            get: { customField == field.key },
+            set: { if !$0 { customField = nil } }
+        )) {
+            TextField("HBO, Arte…", text: $customText)
+            Button("Ajouter") {
+                let value = customText.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !value.isEmpty else { return }
+                CustomChoices.add(value, for: field.key)
+                drafts[field.key] = value
+                commit(field.key, value)
+            }
+            Button("Annuler", role: .cancel) {}
+        }
+    }
+
+    /// Plusieurs valeurs, une par ligne dans `genres` ; `genre` garde la première pour l'affichage
+    /// des versions précédentes.
+    private func multiChoices(_ field: TemplateField, options: [String]) -> some View {
+        let selected = TemplateField.values(field.key, in: drafts)
+        let all = options + selected.filter { !options.contains($0) }
+        return FlowLayout(spacing: 6) {
+            ForEach(all, id: \.self) { option in
+                ChoiceChip(label: option, selected: selected.contains(option)) {
+                    var values = selected
+                    if let index = values.firstIndex(of: option) {
+                        values.remove(at: index)
+                    } else {
+                        values.append(option)
+                    }
+                    let joined = values.isEmpty ? nil : values.joined(separator: "\n")
+                    drafts[field.key] = joined
+                    commit(field.key, joined)
+                    if field.key == "genres" {
+                        drafts["genre"] = values.first
+                        commit("genre", values.first)
+                    }
                 }
             }
         }
