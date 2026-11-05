@@ -49,7 +49,12 @@ struct TaskDetailView: View {
                 }
                 importCard(section?.template)
                 if isSuitcase {
-                    PackingCard(task: task, store: store, run: run) { dismiss() }
+                    PackingCard(task: task, store: store, run: run) {
+                        run { try store.complete(task, review: nil, note: nil) }
+                        dismiss()
+                    }
+                } else if section?.template == .voyage {
+                    PackingCard(task: task, store: store, run: run, reopens: false) { reviewing = true }
                 }
                 if let template = section?.template, !template.fields.isEmpty {
                     TemplateFieldsCard(fields: template.fields, values: task.fields) { key, value in

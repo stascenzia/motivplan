@@ -8,7 +8,10 @@ struct PackingCard: View {
     let task: TaskItem
     let store: TaskStore
     let run: (() throws -> Void) -> Void
-    let finished: () -> Void
+    /// Valise seule : rouvrir depuis les archives. Un voyage se rouvre depuis sa carte Mémoire.
+    var reopens = true
+    /// « Voyage fini » : archive la valise, ou ouvre l'avis d'un voyage.
+    let finish: () -> Void
 
     @State private var drafts: [String: String] = [:]
     @State private var checkCount = 0
@@ -30,13 +33,12 @@ struct PackingCard: View {
                 categoryBlock(category, items: items.filter { PackingCategory.of($0) == category })
             }
             if task.isDone {
-                Button("Rouvrir la valise") { run { try store.toggleDone(task) } }
-                    .buttonStyle(PillButtonStyle())
-            } else {
-                Button("Voyage fini") {
-                    run { try store.complete(task, review: nil, note: nil) }
-                    finished()
+                if reopens {
+                    Button("Rouvrir la valise") { run { try store.toggleDone(task) } }
+                        .buttonStyle(PillButtonStyle())
                 }
+            } else {
+                Button("Voyage fini", action: finish)
                 .buttonStyle(PillButtonStyle(prominent: true))
                 .accessibilityHint("Archive la valise")
             }
