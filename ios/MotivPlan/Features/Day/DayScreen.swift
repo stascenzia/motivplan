@@ -76,7 +76,7 @@ struct DayScreen: View {
             }
             .task(id: cleared) {
                 guard cleared != nil else { return }
-                try? await Task.sleep(for: .seconds(6))
+                try? await Task.sleep(for: .seconds(8))
                 withAnimation { cleared = nil }
             }
             .screenBackground()

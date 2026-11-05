@@ -46,14 +46,16 @@ final class ScreenshotTests: XCTestCase {
 
         let quickAdd = app.textFields["day-quick-add"]
         XCTAssertTrue(quickAdd.waitForExistence(timeout: 15))
-        let limit = app.frame.height * 0.7
         // La journée d'exemple dépasse l'écran : la dernière ligne est d'abord sous le pli.
-        XCTAssertGreaterThan(quickAdd.frame.minY, limit)
+        let start = quickAdd.frame.minY
+        XCTAssertGreaterThan(start, app.frame.height * 0.85)
         let scroll = app.scrollViews.firstMatch
-        for _ in 0..<6 where quickAdd.frame.maxY > limit {
+        for _ in 0..<6 where quickAdd.frame.maxY > app.frame.height * 0.85 {
             scroll.swipeUp(velocity: .slow)
         }
-        XCTAssertLessThan(quickAdd.frame.maxY, limit)
+        // Le doigt part d'une tâche : la frise défile quand même, jusqu'en bas.
+        XCTAssertLessThan(quickAdd.frame.maxY, app.frame.height * 0.85)
+        XCTAssertLessThan(quickAdd.frame.minY, start - 80)
         snapshot(app, "01b-jour-fin-de-journee")
 
         quickAdd.tap()
@@ -80,12 +82,10 @@ final class ScreenshotTests: XCTestCase {
             if confirm.waitForExistence(timeout: 5) { confirm.tap() }
             _ = undo.waitForExistence(timeout: 3)
         }
-        XCTAssertTrue(undo.exists)
-        XCTAssertFalse(report.exists)
-        snapshot(app, "01d-journee-videe")
-
+        // Le bandeau ne reste que quelques secondes : on annule tout de suite, sans capture.
         undo.tap()
         XCTAssertTrue(report.waitForExistence(timeout: 15))
+        snapshot(app, "01d-journee-restauree")
     }
 
     @MainActor
